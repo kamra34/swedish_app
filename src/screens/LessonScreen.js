@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { colors, radius } from '../theme';
 import SentenceBuilder from '../components/SentenceBuilder';
+import SpeakButton from '../components/SpeakButton';
 
 export default function LessonScreen({ lesson, onBack, onComplete }) {
   const builderCount = lesson.builder.length;
@@ -54,7 +55,10 @@ function GrammarStep({ lesson, onNext }) {
       <View style={styles.exampleBox}>
         {g.examples.map((ex, i) => (
           <View key={i} style={[styles.exampleRow, i > 0 && styles.exampleDivider]}>
-            <Text style={styles.exampleSv}>{ex.sv}</Text>
+            <View style={styles.rowLeft}>
+              <SpeakButton text={ex.sv} />
+              <Text style={styles.exampleSv}>{ex.sv}</Text>
+            </View>
             <Text style={styles.exampleEn}>{ex.en}</Text>
           </View>
         ))}
@@ -72,7 +76,10 @@ function VocabStep({ lesson, onNext }) {
       <View style={{ marginTop: 6 }}>
         {lesson.vocab.map((w, i) => (
           <View key={i} style={[styles.vocabRow, i > 0 && styles.exampleDivider]}>
-            <Text style={styles.vocabSv}>{w.sv}</Text>
+            <View style={styles.rowLeft}>
+              <SpeakButton text={w.sv} />
+              <Text style={styles.vocabSv}>{w.sv}</Text>
+            </View>
             <Text style={styles.vocabEn}>{w.en}</Text>
           </View>
         ))}
@@ -121,6 +128,7 @@ const styles = StyleSheet.create({
   dot: { color: colors.blue, fontSize: 16, lineHeight: 22, fontWeight: '800' },
   bulletText: { flex: 1, fontSize: 15, lineHeight: 22, color: colors.ink },
   exampleBox: { backgroundColor: '#F4F8FB', borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 6, marginTop: 18 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
   exampleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   exampleDivider: { borderTopWidth: 1, borderTopColor: colors.line },
   exampleSv: { fontSize: 16, fontWeight: '800', color: colors.blue },

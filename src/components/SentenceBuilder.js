@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors, radius } from '../theme';
+import SpeakButton from './SpeakButton';
 
 function shuffle(arr) {
   const a = [...arr];
@@ -73,7 +74,10 @@ export default function SentenceBuilder({ item, onCorrect }) {
 
       {solved && (
         <View style={styles.tipBox}>
-          <Text style={styles.tipTitle}>Rätt! ✓</Text>
+          <View style={styles.tipHead}>
+            <Text style={styles.tipTitle}>Rätt! ✓</Text>
+            <SpeakButton text={item.answer.join(' ')} size={18} />
+          </View>
           <Text style={styles.tipText}>{item.tip}</Text>
         </View>
       )}
@@ -135,7 +139,8 @@ const styles = StyleSheet.create({
   chipPickedText: { color: colors.white, fontWeight: '700', fontSize: 16 },
   wrongMsg: { color: colors.red, marginTop: 12, fontSize: 13, fontWeight: '600' },
   tipBox: { backgroundColor: colors.greenSoft, borderRadius: radius.md, padding: 14, marginTop: 14 },
-  tipTitle: { color: colors.green, fontWeight: '800', marginBottom: 4, fontSize: 15 },
+  tipHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  tipTitle: { color: colors.green, fontWeight: '800', fontSize: 15 },
   tipText: { color: colors.ink, fontSize: 14, lineHeight: 20 },
   btn: { marginTop: 18, borderRadius: radius.md, paddingVertical: 15, alignItems: 'center' },
   btnPrimary: { backgroundColor: colors.blue },
