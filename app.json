@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "_init",
-    "slug": "_init",
+    "name": "Svenska",
+    "slug": "swedish-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nosrati.svenska"
     },
     "android": {
       "adaptiveIcon": {
