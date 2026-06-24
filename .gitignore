@@ -46,3 +46,9 @@ qr-*.png
 qr-*.svg
 tunnel-url.txt
 scripts/gen-qr*.js
+
+# Cloudflare Worker (NEVER commit the API key)
+worker/node_modules/
+worker/.wrangler/
+.dev.vars
+worker/.dev.vars

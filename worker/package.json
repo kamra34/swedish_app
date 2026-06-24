@@ -1,0 +1,13 @@
+{
+  "name": "svenska-ai-worker",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
+    "wrangler": "^4.104.0"
+  }
+}

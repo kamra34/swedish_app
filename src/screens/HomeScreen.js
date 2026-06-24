@@ -2,7 +2,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { colors, radius } from '../theme';
 import SwedishFlag from '../components/SwedishFlag';
 
-export default function HomeScreen({ levels, lessons, completed, onOpenLesson }) {
+export default function HomeScreen({ levels, lessons, completed, onOpenLesson, onOpenConversation }) {
   return (
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.container}>
       <View style={styles.hero}>
@@ -10,6 +10,18 @@ export default function HomeScreen({ levels, lessons, completed, onOpenLesson })
         <Text style={styles.heroTitle}>Svenska</Text>
         <Text style={styles.heroSub}>Learn Swedish · A1 → C1</Text>
       </View>
+
+      <Pressable
+        onPress={onOpenConversation}
+        style={({ pressed }) => [styles.talkCard, pressed && styles.talkPressed]}
+      >
+        <Text style={styles.talkEmoji}>💬</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.talkTitle}>Talk in Swedish</Text>
+          <Text style={styles.talkSub}>Practise with your AI partner</Text>
+        </View>
+        <Text style={styles.talkArrow}>›</Text>
+      </Pressable>
 
       <Text style={styles.sectionLabel}>YOUR PATH</Text>
       <View style={styles.levelRow}>
@@ -59,6 +71,12 @@ const styles = StyleSheet.create({
   },
   heroTitle: { color: colors.white, fontSize: 32, fontWeight: '800', marginTop: 12, letterSpacing: 0.5 },
   heroSub: { color: '#CFE5F3', fontSize: 14, marginTop: 4 },
+  talkCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.yellow, borderRadius: radius.md, padding: 16, marginBottom: 26 },
+  talkPressed: { opacity: 0.9 },
+  talkEmoji: { fontSize: 26 },
+  talkTitle: { fontSize: 16, fontWeight: '800', color: colors.ink },
+  talkSub: { fontSize: 13, color: '#5b4a00', marginTop: 2 },
+  talkArrow: { fontSize: 26, color: colors.ink, fontWeight: '700' },
   sectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.4, color: colors.muted, marginBottom: 10, marginTop: 6 },
   levelRow: { flexDirection: 'row', gap: 8, marginBottom: 24 },
   levelPill: { flex: 1, paddingVertical: 12, borderRadius: radius.md, alignItems: 'center' },
