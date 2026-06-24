@@ -2,13 +2,15 @@
   "expo": {
     "name": "Svenska",
     "slug": "swedish-app",
+    "owner": "kamra34",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nosrati.svenska"
+      "bundleIdentifier": "com.nosrati.svenska",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,6 +22,17 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "aba57bd3-2045-4ebe-8e18-150f424944dd"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/aba57bd3-2045-4ebe-8e18-150f424944dd"
     }
   }
 }
