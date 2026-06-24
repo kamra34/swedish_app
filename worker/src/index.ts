@@ -5,6 +5,8 @@ export interface Env {
   APP_SECRET?: string;
 }
 
+const MODEL = 'claude-opus-4-8';
+
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -18,7 +20,7 @@ function json(obj: unknown, status = 200): Response {
   });
 }
 
-// Structured output — the app renders this directly (Swedish + English + gentle correction).
+// ---- Chat turn ----------------------------------------------------------------
 const REPLY_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -38,7 +40,7 @@ const REPLY_SCHEMA = {
   required: ['reply_sv', 'reply_en', 'correction'],
 };
 
-function buildSystemPrompt(p: { level: string; scene: string; knownWords: string[]; knownGrammar: string[] }): string {
+function chatSystem(p: { level: string; scene: string; knownWords: string[]; knownGrammar: string[] }): string {
   const words = p.knownWords.length ? p.knownWords.join(', ') : '(only a handful so far)';
   const grammar = p.knownGrammar.length ? p.knownGrammar.join('; ') : 'basic greetings and "jag heter…"';
   return [
@@ -58,6 +60,105 @@ function buildSystemPrompt(p: { level: string; scene: string; knownWords: string
   ].join('\n');
 }
 
+async function handleChat(client: Anthropic, body: any): Promise<Response> {
+  const level = String(body.level ?? 'A1');
+  const scene = String(body.scene ?? '');
+  const knownWords = Array.isArray(body.knownWords) ? body.knownWords.map(String) : [];
+  const knownGrammar = Array.isArray(body.knownGrammar) ? body.knownGrammar.map(String) : [];
+  const history = Array.isArray(body.history) ? body.history : [];
+  const userMessage = String(body.userMessage ?? '').slice(0, 1000);
+  if (!userMessage) return json({ error: 'userMessage required' }, 400);
+
+  const messages = [
+    ...history.slice(-12).map((m: any) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: String(m.content ?? '').slice(0, 1000),
+    })),
+    { role: 'user', content: userMessage },
+  ];
+
+  const resp: any = await client.messages.create({
+    model: MODEL,
+    max_tokens: 500,
+    system: chatSystem({ level, scene, knownWords, knownGrammar }),
+    messages: messages as any,
+    output_config: { format: { type: 'json_schema', schema: REPLY_SCHEMA } },
+  } as any);
+
+  const parsed = parseJson((resp.content || []).find((b: any) => b.type === 'text')?.text);
+  return json({
+    reply_sv: parsed.reply_sv ?? '…',
+    reply_en: parsed.reply_en ?? '',
+    correction: parsed.correction ?? { had_error: false, note: '' },
+  });
+}
+
+// ---- Scene generation ---------------------------------------------------------
+const SCENES_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    scenes: {
+      type: 'array',
+      description: 'Exactly 4 varied everyday role-play scenes.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          emoji: { type: 'string' },
+          title: { type: 'string', description: 'Short Swedish title (2-3 words).' },
+          subtitle: { type: 'string', description: 'Short English description of the scene.' },
+          scene_desc: { type: 'string', description: 'One-sentence English instruction for the AI describing its role and the setting.' },
+          opener_sv: { type: 'string', description: "The AI's opening line in simple Swedish." },
+          opener_en: { type: 'string', description: 'English translation of opener_sv.' },
+        },
+        required: ['emoji', 'title', 'subtitle', 'scene_desc', 'opener_sv', 'opener_en'],
+      },
+    },
+  },
+  required: ['scenes'],
+};
+
+function scenesSystem(p: { level: string; knownWords: string[]; knownGrammar: string[]; nonce: string }): string {
+  const words = p.knownWords.length ? p.knownWords.join(', ') : '(only a handful so far)';
+  const grammar = p.knownGrammar.length ? p.knownGrammar.join('; ') : 'basic greetings';
+  return [
+    `Generate exactly 4 short, varied, everyday role-play scenarios for a Swedish beginner at CEFR level ${p.level} to practise speaking.`,
+    `The learner knows these words: ${words}. Grammar: ${grammar}.`,
+    ``,
+    `For each scene provide: an emoji; a short Swedish title; a one-line English subtitle; a one-sentence English instruction for YOU, the AI, describing your role and the setting (scene_desc); and a friendly opening line in SIMPLE Swedish (opener_sv) with its English translation (opener_en).`,
+    `Make the four scenes clearly DIFFERENT from each other and fresh — e.g. café, bus, shop, neighbour, classroom, market, the weather, hobbies, a phone call. Keep all Swedish within or close to the learner's level. Each opener should invite an easy reply.`,
+    `Variety seed (use it to pick different scenes than usual): ${p.nonce}.`,
+  ].join('\n');
+}
+
+async function handleScenes(client: Anthropic, body: any): Promise<Response> {
+  const level = String(body.level ?? 'A1');
+  const knownWords = Array.isArray(body.knownWords) ? body.knownWords.map(String) : [];
+  const knownGrammar = Array.isArray(body.knownGrammar) ? body.knownGrammar.map(String) : [];
+  const nonce = String(body.nonce ?? Math.floor(Math.random() * 1e9));
+
+  const resp: any = await client.messages.create({
+    model: MODEL,
+    max_tokens: 900,
+    system: scenesSystem({ level, knownWords, knownGrammar, nonce }),
+    messages: [{ role: 'user', content: 'Generate the four scenes now.' }] as any,
+    output_config: { format: { type: 'json_schema', schema: SCENES_SCHEMA } },
+  } as any);
+
+  const parsed = parseJson((resp.content || []).find((b: any) => b.type === 'text')?.text);
+  return json({ scenes: Array.isArray(parsed.scenes) ? parsed.scenes : [] });
+}
+
+// ---- helpers ------------------------------------------------------------------
+function parseJson(text: any): any {
+  try {
+    return JSON.parse(text ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
@@ -74,46 +175,12 @@ export default {
       return json({ error: 'invalid JSON' }, 400);
     }
 
-    const level = String(body.level ?? 'A1');
-    const scene = String(body.scene ?? '');
-    const knownWords = Array.isArray(body.knownWords) ? body.knownWords.map(String) : [];
-    const knownGrammar = Array.isArray(body.knownGrammar) ? body.knownGrammar.map(String) : [];
-    const history = Array.isArray(body.history) ? body.history : [];
-    const userMessage = String(body.userMessage ?? '').slice(0, 1000);
-    if (!userMessage) return json({ error: 'userMessage required' }, 400);
-
-    const messages = [
-      ...history.slice(-12).map((m: any) => ({
-        role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: String(m.content ?? '').slice(0, 1000),
-      })),
-      { role: 'user', content: userMessage },
-    ];
-
+    const path = new URL(request.url).pathname;
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
     try {
-      const resp: any = await client.messages.create({
-        model: 'claude-opus-4-8',
-        max_tokens: 500,
-        system: buildSystemPrompt({ level, scene, knownWords, knownGrammar }),
-        messages: messages as any,
-        output_config: { format: { type: 'json_schema', schema: REPLY_SCHEMA } },
-      } as any);
-
-      const textBlock: any = (resp.content || []).find((b: any) => b.type === 'text');
-      let parsed: any = {};
-      try {
-        parsed = JSON.parse(textBlock?.text ?? '{}');
-      } catch {
-        parsed = {};
-      }
-
-      return json({
-        reply_sv: parsed.reply_sv ?? '…',
-        reply_en: parsed.reply_en ?? '',
-        correction: parsed.correction ?? { had_error: false, note: '' },
-      });
+      if (path.endsWith('/scenes')) return await handleScenes(client, body);
+      return await handleChat(client, body);
     } catch (e: any) {
       return json({ error: 'claude_error', detail: String(e?.message ?? e) }, 502);
     }
