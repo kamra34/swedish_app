@@ -21,6 +21,13 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6783824683",
+        "ascApiKeyPath": "C:/Users/ekamrad/Downloads/AuthKey_F8SR492WR6.p8",
+        "ascApiKeyId": "F8SR492WR6",
+        "ascApiKeyIssuerId": "1f23fae7-e8df-41dc-9607-e615a54fa4ab"
+      }
+    }
   }
 }
