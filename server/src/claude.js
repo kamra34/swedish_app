@@ -14,6 +14,30 @@ function parseJson(text) {
   }
 }
 
+// Models sometimes emit literal escape sequences (e.g. "Säg" instead of
+// "Säg") or stray "null" tokens inside the JSON. JSON.parse leaves those as
+// literal text, which then shows in the chat AND gets read aloud as gibberish.
+// Decode \uXXXX back to real characters, tidy whitespace, and drop null-ish junk.
+function cleanText(s) {
+  if (typeof s !== 'string') return '';
+  let out = s.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+  out = out.replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/^(null|undefined)[\s.]*$/i.test(out)) return '';
+  return out;
+}
+
+function cleanScene(s) {
+  if (!s || typeof s !== 'object') return s;
+  return {
+    ...s,
+    title: cleanText(s.title),
+    subtitle: cleanText(s.subtitle),
+    scene_desc: cleanText(s.scene_desc),
+    opener_sv: cleanText(s.opener_sv),
+    opener_en: cleanText(s.opener_en),
+  };
+}
+
 // ---- Chat turn ----------------------------------------------------------------
 const REPLY_SCHEMA = {
   type: 'object',
@@ -68,8 +92,10 @@ function chatSystem(p) {
     `Rules:`,
     `- Reply ONLY in simple Swedish, 1-2 short sentences at about CEFR ${p.level}. Prefer words the learner knows; a few very common ${p.level} words are fine. Keep it concrete and natural for the situation.`,
     `- Keep the conversation moving with exactly ONE easy, RELEVANT question that fits the ${isGeneral ? 'current topic' : 'scene'}.`,
+    `- Do NOT ask the learner's name or state your own name after the first exchange, and never reuse the same question — especially "Vad heter du?" / "Hur mår du?". Each turn should move the situation forward with a fresh, relevant question.`,
     `- Be warm and encouraging, and coach: when useful, gently model a better phrasing. Never write English in reply_sv.`,
     `- reply_en must be an accurate English translation of reply_sv.`,
+    `- Write Swedish with real letters (å ä ö) and normal punctuation. NEVER output escape codes like "\\u00e4", and never write the literal words "null" or "undefined".`,
     `- If the learner's latest Swedish has a mistake, set correction.had_error true and give a short, kind fix in English in correction.note (name what to fix, e.g. word order or en/ett). If it is fine (or they wrote English), set had_error false and note "".`,
   ].join('\n');
 }
@@ -100,10 +126,11 @@ export async function chatReply(body) {
   });
 
   const parsed = parseJson(resp.content?.find((b) => b.type === 'text')?.text);
+  const note = cleanText(parsed.correction?.note);
   return {
-    reply_sv: parsed.reply_sv ?? '…',
-    reply_en: parsed.reply_en ?? '',
-    correction: parsed.correction ?? { had_error: false, note: '' },
+    reply_sv: cleanText(parsed.reply_sv) || '…',
+    reply_en: cleanText(parsed.reply_en),
+    correction: { had_error: !!parsed.correction?.had_error && note.length > 0, note },
   };
 }
 
@@ -140,7 +167,8 @@ function scenesSystem(p) {
     `Create short everyday role-play scenes for a Swedish beginner at CEFR level ${p.level} to practise speaking.`,
     `The learner knows these words: ${words}. Grammar: ${grammar}.`,
     ``,
-    `For each scene provide: a fitting emoji; a short Swedish title; a one-line English subtitle; a one-sentence English instruction for YOU, the AI, describing your role and the setting (scene_desc); and a friendly opening line in SIMPLE Swedish (opener_sv) with its English translation (opener_en). Keep all Swedish within or close to the learner's level; each opener should invite an easy reply.`,
+    `For each scene provide: a fitting emoji; a short Swedish title; a one-line English subtitle; a one-sentence English instruction for YOU, the AI, describing your role and the setting (scene_desc); and an opening line in SIMPLE Swedish (opener_sv) with its English translation (opener_en).`,
+    `The opener should drop the learner straight INTO the situation (e.g. a café host: "Hej! Vad vill du ha?"; a neighbour: "Hej! Fint väder idag, eller hur?") — do NOT open by stating a name or asking "Vad heter du?" unless the scene is explicitly a first introduction. Make scenes varied. Use real Swedish letters (å ä ö), no escape codes; each opener should invite an easy reply.`,
   ];
   if (p.topics && p.topics.length) {
     lines.push(`Create exactly ${p.topics.length} scenes, ONE for each of these settings, IN THIS ORDER:`);
@@ -167,7 +195,7 @@ export async function generateScenes(body) {
   });
 
   const parsed = parseJson(resp.content?.find((b) => b.type === 'text')?.text);
-  return { scenes: Array.isArray(parsed.scenes) ? parsed.scenes : [] };
+  return { scenes: (Array.isArray(parsed.scenes) ? parsed.scenes : []).map(cleanScene) };
 }
 
 // ---- One custom scene from the learner's own description ----
@@ -196,7 +224,7 @@ export async function generateCustomScene(body) {
     `Build ONE Swedish role-play scene for a CEFR ${level} learner to practise speaking, based on this request from the learner:`,
     `"${description}"`,
     ``,
-    `Provide: a fitting emoji; a short Swedish title; a one-line English subtitle; a one-sentence English instruction for YOU, the AI, describing your role and the setting (scene_desc); and a friendly opening line in SIMPLE Swedish (opener_sv) with its English translation (opener_en).`,
+    `Provide: a fitting emoji; a short Swedish title; a one-line English subtitle; a one-sentence English instruction for YOU, the AI, describing your role and the setting (scene_desc); and an opening line in SIMPLE Swedish (opener_sv) with its English translation (opener_en). The opener should drop the learner straight into the situation — do NOT open by stating a name or asking "Vad heter du?" unless the scene is explicitly a first introduction. Use real Swedish letters (å ä ö), no escape codes.`,
     `Keep all Swedish within or close to the learner's level. The learner knows: ${words}. Grammar: ${knownGrammar.join('; ') || 'basic greetings'}. If the request is unclear or off-topic, choose a sensible simple everyday scene.`,
   ].join('\n');
 
@@ -209,5 +237,5 @@ export async function generateCustomScene(body) {
   });
 
   const parsed = parseJson(resp.content?.find((b) => b.type === 'text')?.text);
-  return { scene: parsed && parsed.title ? parsed : null };
+  return { scene: parsed && parsed.title ? cleanScene(parsed) : null };
 }
