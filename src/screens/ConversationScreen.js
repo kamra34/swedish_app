@@ -12,6 +12,7 @@ import {
 } from '../api/chat';
 import SpeakButton from '../components/SpeakButton';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import * as Speech from 'expo-speech';
 
 // --- normalize the various scene shapes into one ---
 const normGen = (s, id) => ({
@@ -69,6 +70,22 @@ export default function ConversationScreen({ onBack }) {
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
   const startingRef = useRef(false); // guards against double-starting voice recognition
+
+  // hands-free "call" mode (continuous listen → reply → speak → auto-listen loop)
+  const [callActive, setCallActive] = useState(false);
+  const [callState, setCallState] = useState('idle'); // UI: starting|listening|thinking|speaking
+  const [partial, setPartial] = useState(''); // live transcript of what you're saying
+  const callRef = useRef(false); // mirrors callActive for use inside captured listeners
+  const phaseRef = useRef('idle'); // synchronous state-machine gate (see setPhase)
+  const partialRef = useRef('');
+  const callSubsRef = useRef([]);
+  const sceneRef = useRef(null);
+  const messagesRef = useRef([]);
+  const restartTimerRef = useRef(null); // pending listen-restart (coalesces duplicate triggers)
+  const speakWatchdogRef = useRef(null); // rescues a swallowed TTS onDone (e.g. on web)
+  const noResultRef = useRef(0); // consecutive turns with nothing heard
+  const failRef = useRef(0); // consecutive backend failures
+  const justEndedCallRef = useRef(false); // brief guard so stop()'s trailing result can't leak
 
   const { knownWords, knownGrammar } = useMemo(() => {
     const unlocked = lessons.filter((l) => l.unlocked);
@@ -147,7 +164,7 @@ export default function ConversationScreen({ onBack }) {
     try { await deleteSavedScene(savedId); } catch { loadSaved(); }
   };
 
-  const leaveScene = () => { stopVoice(); setScene(null); setMessages([]); setInput(''); };
+  const leaveScene = () => { endCall(); stopVoice(); setScene(null); setMessages([]); setInput(''); };
 
   const toggleEn = (id) => setMessages((ms) => ms.map((m) => (m.id === id ? { ...m, showEn: !m.showEn } : m)));
 
@@ -180,11 +197,18 @@ export default function ConversationScreen({ onBack }) {
   // Native (iOS/Android) on-device speech-to-text events. On web we use the
   // browser's SpeechRecognition instead (in startVoice), so these never fire there.
   useSpeechRecognitionEvent('result', (e) => {
+    // hands-free call mode handles its own events; the grace flag also drops the
+    // trailing result that stop() emits just after a call ends.
+    if (callRef.current || justEndedCallRef.current) return;
     const t = e?.results?.[0]?.transcript;
     if (typeof t === 'string') setInput(t);
   });
-  useSpeechRecognitionEvent('end', () => setListening(false));
+  useSpeechRecognitionEvent('end', () => {
+    if (callRef.current) return;
+    setListening(false);
+  });
   useSpeechRecognitionEvent('error', (e) => {
+    if (callRef.current) return;
     setListening(false);
     if (e?.error && e.error !== 'aborted' && e.error !== 'no-speech') {
       setError('🎤 Could not hear that clearly — try again, or type your reply.');
@@ -245,7 +269,194 @@ export default function ConversationScreen({ onBack }) {
     setListening(true);
     rec.start();
   };
-  useEffect(() => () => stopVoice(), []);
+
+  // ----- hands-free "call" mode: listen → reply → speak → auto-listen, looping -----
+  // Keep refs fresh so the captured native listeners always read current values.
+  useEffect(() => { sceneRef.current = scene; }, [scene]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  const MAX_NO_RESULT = 8; // stop listening after this many silent turns in a row
+  const MAX_FAIL = 3;      // stop after this many backend failures in a row
+
+  // Single source of truth for the loop. phaseRef is read synchronously by the
+  // native event handlers; callState mirrors it for the UI.
+  const setPhase = (p) => { phaseRef.current = p; setCallState(p); };
+  const clearRestart = () => { if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; } };
+  const clearWatchdog = () => { if (speakWatchdogRef.current) { clearTimeout(speakWatchdogRef.current); speakWatchdogRef.current = null; } };
+
+  // Start ONE mic session after a short settle delay. Coalesces duplicate
+  // triggers (the recognizer emits a paired error+end for one session) and lets
+  // the previous session reach 'inactive' so start() can't fail with 'busy'.
+  const scheduleListen = (delay = 350) => {
+    if (!callRef.current) return;
+    if (restartTimerRef.current) return; // a restart is already pending
+    setPhase('starting');
+    setPartial(''); partialRef.current = '';
+    restartTimerRef.current = setTimeout(() => {
+      restartTimerRef.current = null;
+      if (!callRef.current || phaseRef.current !== 'starting') return;
+      try {
+        ExpoSpeechRecognitionModule.start({
+          lang: 'sv-SE',
+          interimResults: true,
+          continuous: false, // auto-stops when you pause speaking → fires 'end'
+          contextualStrings: knownWords.slice(0, 100),
+        });
+        setPhase('listening');
+      } catch (err) {
+        setError('🎤 Voice could not start.');
+        endCall();
+      }
+    }, delay);
+  };
+
+  const giveUpListening = () => {
+    endCall();
+    setError('🎤 I didn’t catch anything — tap “Start hands-free conversation” to resume.');
+  };
+
+  const onCallResult = (e) => {
+    if (phaseRef.current !== 'listening') return; // ignore stale / out-of-phase events
+    const t = e?.results?.[0]?.transcript;
+    if (typeof t === 'string') { setPartial(t); partialRef.current = t; }
+  };
+
+  const onCallEnd = () => {
+    if (phaseRef.current !== 'listening') return; // duplicate / stale 'end' → drop
+    const said = (partialRef.current || '').trim();
+    partialRef.current = '';
+    if (said) {
+      noResultRef.current = 0;
+      setPhase('thinking'); // leave 'listening' synchronously so a paired event bails
+      callExchange(said);
+    } else {
+      noResultRef.current += 1;
+      if (noResultRef.current >= MAX_NO_RESULT) giveUpListening();
+      else scheduleListen();
+    }
+  };
+
+  const onCallError = (e) => {
+    if (!callRef.current) return;
+    const code = e?.error;
+    if (code === 'not-allowed' || code === 'service-not-allowed' ||
+        code === 'language-not-supported' || code === 'audio-capture') {
+      endCall();
+      setError('🎤 Voice isn’t available right now (' + (code || 'error') + '). Tap to try again.');
+      return;
+    }
+    // transient ('no-speech' / 'network' / 'busy' / interruption). One session can
+    // emit a paired error+end, so only act while still listening/starting, then
+    // move out of that phase so the trailing event is dropped.
+    if (phaseRef.current !== 'listening' && phaseRef.current !== 'starting') return;
+    noResultRef.current += 1;
+    if (noResultRef.current >= MAX_NO_RESULT) giveUpListening();
+    else scheduleListen();
+  };
+
+  const callExchange = async (text) => {
+    if (!callRef.current || phaseRef.current !== 'thinking') return;
+    const base = messagesRef.current;
+    const userMsg = { id: 'cu' + base.length + '-' + Date.now(), role: 'user', text };
+    const next = [...base, userMsg];
+    setMessages(next);
+    try {
+      const history = next.slice(0, -1).map((m) => ({
+        role: m.role === 'ai' ? 'assistant' : 'user',
+        content: m.role === 'ai' ? m.sv : m.text,
+      }));
+      const data = await sendChat({
+        level: 'A1', scene: sceneRef.current?.sceneDesc || '',
+        knownWords, knownGrammar, history, userMessage: text,
+      });
+      if (!callRef.current || phaseRef.current !== 'thinking') return;
+      failRef.current = 0;
+      const sv = data.reply_sv || '…';
+      setMessages((ms) => [...ms, {
+        id: 'ca' + ms.length + '-' + Date.now(), role: 'ai',
+        sv, en: data.reply_en || '', showEn: false,
+        correction: data.correction?.had_error ? data.correction.note : null,
+      }]);
+      callSpeak(sv);
+    } catch (err) {
+      if (!callRef.current || phaseRef.current !== 'thinking') return;
+      failRef.current += 1;
+      if (failRef.current >= MAX_FAIL) {
+        endCall();
+        setError('Lost the connection to the tutor — call ended.');
+      } else {
+        setError('Tutor unreachable — retrying…');
+        scheduleListen(1500); // back off before listening again
+      }
+    }
+  };
+
+  const callSpeak = (sv) => {
+    if (!callRef.current) return;
+    setPhase('speaking');
+    try { Speech.stop(); } catch {}
+    const done = () => { clearWatchdog(); if (callRef.current && phaseRef.current === 'speaking') scheduleListen(); };
+    // Watchdog first: some platforms (web speechSynthesis) can swallow onDone —
+    // never let the loop freeze on 'speaking'.
+    clearWatchdog();
+    const ms = Math.min(15000, 1800 + (sv ? sv.length : 0) * 90);
+    speakWatchdogRef.current = setTimeout(() => {
+      speakWatchdogRef.current = null;
+      if (callRef.current && phaseRef.current === 'speaking') scheduleListen();
+    }, ms);
+    try {
+      Speech.speak(sv, { language: 'sv-SE', rate: 0.95, pitch: 1.0, onDone: done, onError: done });
+    } catch (err) { done(); }
+  };
+
+  const startCall = async () => {
+    if (callRef.current) return;
+    try {
+      const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!perm?.granted) {
+        setError('🎤 Allow microphone & speech access in iPhone Settings to use hands-free voice.');
+        return;
+      }
+    } catch (err) {
+      setError('🎤 Hands-free voice is unavailable on this device.');
+      return;
+    }
+    stopVoice();
+    Keyboard.dismiss();
+    setError(null);
+    noResultRef.current = 0;
+    failRef.current = 0;
+    partialRef.current = '';
+    setPartial('');
+    justEndedCallRef.current = false;
+    callRef.current = true;
+    setCallActive(true);
+    phaseRef.current = 'starting'; // drop the manual stop()'s trailing events
+    callSubsRef.current = [
+      ExpoSpeechRecognitionModule.addListener('result', onCallResult),
+      ExpoSpeechRecognitionModule.addListener('end', onCallEnd),
+      ExpoSpeechRecognitionModule.addListener('error', onCallError),
+    ];
+    scheduleListen(); // first listen after a settle delay
+  };
+
+  const endCall = () => {
+    callRef.current = false;
+    clearRestart();
+    clearWatchdog();
+    setPhase('idle');
+    setCallActive(false);
+    setPartial(''); partialRef.current = '';
+    try { ExpoSpeechRecognitionModule.stop(); } catch {}
+    try { Speech.stop(); } catch {}
+    callSubsRef.current.forEach((s) => { try { s.remove?.(); } catch {} });
+    callSubsRef.current = [];
+    // brief grace so stop()'s trailing 'result' can't leak into the manual input box
+    justEndedCallRef.current = true;
+    setTimeout(() => { justEndedCallRef.current = false; }, 700);
+  };
+
+  useEffect(() => () => { stopVoice(); endCall(); }, []);
 
   useEffect(() => {
     const t = setTimeout(() => scrollRef.current?.scrollToEnd?.({ animated: true }), 60);
@@ -394,24 +605,56 @@ export default function ConversationScreen({ onBack }) {
         {error && <Text style={styles.error}>{error}</Text>}
       </ScrollView>
 
-      <View style={styles.inputBar}>
-        <Pressable onPress={startVoice} style={({ pressed }) => [styles.micBtn, listening && styles.micActive, pressed && styles.pressed]}>
-          <Text style={{ fontSize: 18 }}>{listening ? '⏺' : '🎤'}</Text>
-        </Pressable>
-        <TextInput
-          style={styles.input}
-          value={input}
-          onChangeText={setInput}
-          placeholder={listening ? 'Lyssnar… (listening)' : 'Skriv på svenska…'}
-          placeholderTextColor={colors.muted}
-          editable={!loading}
-          onSubmitEditing={send}
-          returnKeyType="send"
-        />
-        <Pressable onPress={send} disabled={!input.trim() || loading} style={({ pressed }) => [styles.sendBtn, (!input.trim() || loading) && styles.btnDisabled, pressed && styles.pressed]}>
-          <Text style={styles.sendText}>Send</Text>
-        </Pressable>
+      {callActive ? (
+        <CallPanel state={callState} partial={partial} onEnd={endCall} />
+      ) : (
+        <>
+          <Pressable onPress={startCall} style={({ pressed }) => [styles.callCta, pressed && styles.pressed]}>
+            <Text style={styles.callCtaText}>📞  Start hands-free conversation</Text>
+          </Pressable>
+          <View style={styles.inputBar}>
+            <Pressable onPress={startVoice} style={({ pressed }) => [styles.micBtn, listening && styles.micActive, pressed && styles.pressed]}>
+              <Text style={{ fontSize: 18 }}>{listening ? '⏺' : '🎤'}</Text>
+            </Pressable>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder={listening ? 'Lyssnar… (listening)' : 'Skriv på svenska…'}
+              placeholderTextColor={colors.muted}
+              editable={!loading}
+              onSubmitEditing={send}
+              returnKeyType="send"
+            />
+            <Pressable onPress={send} disabled={!input.trim() || loading} style={({ pressed }) => [styles.sendBtn, (!input.trim() || loading) && styles.btnDisabled, pressed && styles.pressed]}>
+              <Text style={styles.sendText}>Send</Text>
+            </Pressable>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+function CallPanel({ state, partial, onEnd }) {
+  const listening = state === 'listening' || state === 'starting';
+  const label =
+    listening ? '🎧  Listening…' :
+    state === 'thinking' ? '💭  Thinking…' :
+    state === 'speaking' ? '🗣️  Speaking…' : '…';
+  const live = listening;
+  return (
+    <View style={styles.callPanel}>
+      <View style={styles.callTopRow}>
+        <View style={[styles.callDot, live && styles.callDotLive]} />
+        <Text style={styles.callStatus}>{label}</Text>
       </View>
+      <Text style={styles.callBody} numberOfLines={2}>
+        {partial ? partial : 'Just talk — I’ll reply out loud, then listen again.'}
+      </Text>
+      <Pressable onPress={onEnd} style={({ pressed }) => [styles.callEndBtn, pressed && styles.pressed]}>
+        <Text style={styles.callEndText}>✕  End call</Text>
+      </Pressable>
     </View>
   );
 }
@@ -505,5 +748,18 @@ const styles = StyleSheet.create({
   sendBtn: { backgroundColor: colors.blue, borderRadius: radius.pill, paddingHorizontal: 18, paddingVertical: 11 },
   btnDisabled: { backgroundColor: '#B9C6D2' },
   sendText: { color: colors.white, fontWeight: '800', fontSize: 15 },
+
+  // hands-free call mode
+  callCta: { alignItems: 'center', paddingVertical: 11, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.card },
+  callCtaText: { color: colors.blue, fontWeight: '800', fontSize: 15 },
+  callPanel: { padding: 18, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.card, alignItems: 'center', gap: 10 },
+  callTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  callDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.muted },
+  callDotLive: { backgroundColor: colors.red },
+  callStatus: { fontSize: 17, fontWeight: '800', color: colors.ink },
+  callBody: { fontSize: 15, color: colors.muted, textAlign: 'center', minHeight: 40 },
+  callEndBtn: { backgroundColor: '#FBE2E0', borderRadius: radius.pill, paddingHorizontal: 24, paddingVertical: 11, borderWidth: 1, borderColor: colors.red },
+  callEndText: { color: colors.red, fontWeight: '800', fontSize: 15 },
+
   pressed: { opacity: 0.85 },
 });
