@@ -148,7 +148,9 @@ Evolving from "app + AI chat" into a **structured Swedish school**:
 
 **Phased build:**
 1. **Foundation** — Railway accounts + DB + the coaches hub + persisted progress/level. **✅ DONE.**
-2. **Full real-time voice** for the Talking coach (auto-loop → barge-in).
+2. **Full real-time voice** for the Talking coach — **✅ V1 auto-loop DONE** (hands-free "call mode":
+   listen→reply→speak→auto-listen, shipped OTA). **Next: interruption / barge-in** (let the user cut in
+   while the AI is speaking).
 3. **Listening coach.**  4. **Grammar coach.**  5. **Examiner** (placement + level exams + certificates
    + level unlocking).  Ongoing: more lessons, SRS, visual polish (deferred on purpose).
 
@@ -158,8 +160,10 @@ Evolving from "app + AI chat" into a **structured Swedish school**:
 
 **What works (end-to-end, live):** accounts, the coaches hub, A1 lessons with saved progress, and the
 Talking coach — **scene-aware + free-talk** chat (level-aware, English + gentle correction), Swedish TTS
-(plays even on silent), and **on-device voice input** on the phone — all backed by the deployed Railway
-API. **Latest TestFlight build: `1.1.0 (2)`** (see Build history below; confirm its Apple processing is VALID).
+(plays even on silent), **on-device voice input**, and **hands-free "call mode"** (continuous
+listen→reply→speak→auto-listen) — all backed by the deployed Railway API. **Latest native TestFlight build:
+`1.1.0 (3)`** (launches; verified VALID); **call mode shipped on top via OTA** (runtime 1.1.0, commit
+`109495b`) — reopen the app twice to get the newest JS.
 
 **Run it locally:**
 ```
@@ -223,10 +227,10 @@ crash on open. Fix: `npx expo install expo-asset expo-constants` (pins SDK-54 `1
 native modules that a JS bundle check never will.** Install **1.1.0(3)** to get everything (voice,
 silent-mode audio, keyboard, scene-aware, free-talk).
 
-**Immediate next options (owner picks):** ① ~~deploy to Railway + rebuild~~ ✅ **DONE** • ② Phase-2
-**continuous real-time voice** for the Talking coach • ③ next coach (Listening / Grammar / Reading) •
-④ Examiner (placement + level exams + certificates) • ⑤ more A1 lessons • ⑥ SRS. Visual polish is
-intentionally deferred.
+**Immediate next options (owner picks):** ① ~~deploy to Railway + rebuild~~ ✅ **DONE** • ② ~~Phase-2
+real-time voice (auto-loop)~~ ✅ **DONE** → next is **barge-in** (interrupt the AI mid-speech) • ③ next
+coach (Listening / Grammar / Reading) • ④ Examiner (placement + level exams + certificates) • ⑤ more A1
+lessons • ⑥ SRS. Visual polish is intentionally deferred.
 
 **Conventions:** commit messages end with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 Never put secrets in the app or git. Don't bump the Expo SDK off 54. The owner is a non-coder — build
