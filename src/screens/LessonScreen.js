@@ -95,7 +95,7 @@ function DoneStep({ lesson, onComplete }) {
       <Text style={styles.doneEmoji}>🎉</Text>
       <Text style={styles.doneTitle}>Klart!</Text>
       <Text style={styles.doneSub}>
-        You finished “{lesson.title}”. You can now greet someone and say your name in Swedish.
+        You finished “{lesson.title}”. {lesson.done || ''}
       </Text>
       <Cta title="Finish lesson" onPress={onComplete} variant="accent" />
     </View>

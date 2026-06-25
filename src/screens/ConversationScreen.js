@@ -11,6 +11,7 @@ import {
   sendChat, fetchScenes, customScene, getSavedScenes, saveScene, deleteSavedScene,
 } from '../api/chat';
 import SpeakButton from '../components/SpeakButton';
+import { useAuth } from '../AuthContext';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import * as Speech from 'expo-speech';
 
@@ -87,13 +88,17 @@ export default function ConversationScreen({ onBack }) {
   const failRef = useRef(0); // consecutive backend failures
   const justEndedCallRef = useRef(false); // brief guard so stop()'s trailing result can't leak
 
+  const { progress } = useAuth();
   const { knownWords, knownGrammar } = useMemo(() => {
-    const unlocked = lessons.filter((l) => l.unlocked);
+    // Calibrate the coach to what the learner has actually COMPLETED (not just
+    // what's unlocked), so adding lessons never makes the AI assume too much.
+    const doneIds = new Set((progress || []).filter((p) => p.completed).map((p) => p.item_id));
+    const done = lessons.filter((l) => doneIds.has(l.id));
     return {
-      knownWords: unlocked.flatMap((l) => (l.vocab || []).map((v) => v.sv)),
-      knownGrammar: unlocked.flatMap((l) => l.grammar?.body || []),
+      knownWords: done.flatMap((l) => (l.vocab || []).map((v) => v.sv)),
+      knownGrammar: done.flatMap((l) => l.grammar?.body || []),
     };
-  }, []);
+  }, [progress]);
 
   const loadSuggested = useCallback(async () => {
     setLoadingSug(true);
