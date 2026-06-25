@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable, TextInput, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Keyboard,
 } from 'react-native';
 import { colors, radius } from '../theme';
 import { scenes as fallbackScenes } from '../data/scenes';
@@ -34,6 +34,17 @@ const toRaw = (s) => ({
   emoji: s.emoji, title: s.title, subtitle: s.subtitle,
   scene_desc: s.sceneDesc, opener_sv: s.opener.sv, opener_en: s.opener.en,
 });
+
+// Always-available "free talk" — no fixed scene. Empty sceneDesc tells the
+// backend to use open small-talk mode (still level-aware + coaching).
+const GENERAL_SCENE = {
+  id: 'general',
+  emoji: '💬',
+  title: 'Småprat',
+  subtitle: 'Free chat — talk about anything',
+  sceneDesc: '',
+  opener: { sv: 'Hej! Vad har du gjort idag?', en: 'Hi! What have you done today?' },
+};
 
 export default function ConversationScreen({ onBack }) {
   const [scene, setScene] = useState(null);
@@ -171,8 +182,12 @@ export default function ConversationScreen({ onBack }) {
   const startVoice = () => {
     if (listening) { stopVoice(); return; }
     const SR = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
-    if (Platform.OS !== 'web' || !SR) {
-      setError('🎤 Voice works in the web preview (and on the phone after the next build). For now, just type your reply.');
+    if (Platform.OS !== 'web') {
+      setError('🎤 On-device voice replies are coming in the next app update — for now, just type your reply.');
+      return;
+    }
+    if (!SR) {
+      setError('🎤 This browser doesn’t support voice input — just type your reply.');
       return;
     }
     const rec = new SR();
@@ -194,12 +209,34 @@ export default function ConversationScreen({ onBack }) {
     return () => clearTimeout(t);
   }, [messages, loading]);
 
+  // When the keyboard opens, the chat area shrinks — re-scroll so the latest
+  // message stays visible above the keyboard instead of being clipped.
+  useEffect(() => {
+    const evt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const sub = Keyboard.addListener(evt, () => {
+      setTimeout(() => scrollRef.current?.scrollToEnd?.({ animated: true }), 50);
+    });
+    return () => sub.remove();
+  }, []);
+
   // ---------- Scene picker ----------
   if (!scene) {
     return (
       <View style={styles.root}>
         <Header title="Talk in Swedish" backLabel="Home" onBack={onBack} />
         <ScrollView contentContainerStyle={styles.pickerBody} keyboardShouldPersistTaps="handled">
+          {/* free talk — always available, no fixed scene */}
+          <Text style={styles.sectionLabel}>FREE TALK</Text>
+          <View style={styles.sceneCard}>
+            <Pressable style={styles.sceneMain} onPress={() => startScene(GENERAL_SCENE)}>
+              <Text style={styles.sceneEmoji}>{GENERAL_SCENE.emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sceneTitle}>{GENERAL_SCENE.title}</Text>
+                <Text style={styles.sceneSub}>{GENERAL_SCENE.subtitle}</Text>
+              </View>
+            </Pressable>
+          </View>
+
           {/* make your own */}
           <Text style={styles.sectionLabel}>MAKE YOUR OWN</Text>
           <View style={styles.makeRow}>
@@ -284,7 +321,12 @@ export default function ConversationScreen({ onBack }) {
           </Pressable>
         }
       />
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.chatBody}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.chatBody}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
         {messages.map((m) =>
           m.role === 'ai' ? (
             <AiBubble key={m.id} m={m} onToggle={() => toggleEn(m.id)} />
