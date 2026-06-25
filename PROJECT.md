@@ -48,9 +48,11 @@ taught explicitly. The lesson loop:
   active; Grammar / Listening / Reading "coming soon"); and the A1 **lessons** with ✓ from the DB.
 - `LessonScreen` — steps: grammar note → vocabulary → Sentence Builder rounds → done.
   Tap-to-hear 🔊 on words, examples, and solved sentences.
-- `ConversationScreen` — the **Talking coach**: scene picker (**Make-your-own**, **Saved**,
-  **Suggested**) + chat (level-aware structured reply with English + gentle correction),
-  🔊 pronunciation, 🎤 voice input (web, typing fallback), and a ⭐ Save-scene button.
+- `ConversationScreen` — the **Talking coach**: scene picker (**Free talk / Småprat**,
+  **Make-your-own**, **Saved**, **Suggested**) + chat (level-aware **and scene-aware** structured
+  reply with English + gentle correction), 🔊 pronunciation, 🎤 voice input (**on-device STT on the
+  phone** via expo-speech-recognition; browser SpeechRecognition on web; typing always works), and a
+  ⭐ Save-scene button.
 - Navigation is simple state in `App.js` (`home | lesson | conversation`) inside `AuthProvider`.
   Move to a router (Expo Router / React Navigation) when it grows.
 
@@ -58,7 +60,9 @@ taught explicitly. The lesson loop:
 - **Expo (React Native)**, **pinned to SDK 54** — the owner's App Store **Expo Go only
   supports ≤ 54** (SDK 56 showed "incompatible"). Do not bump the SDK without re-checking.
 - **Native modules added** (each needs a fresh `eas build` to reach the iPhone): `expo-speech`
-  (Swedish TTS), `@react-native-async-storage/async-storage` (auth token).
+  (Swedish TTS), `@react-native-async-storage/async-storage` (auth token), `expo-audio`
+  (`setAudioModeAsync({ playsInSilentMode: true })` so TTS plays with the iPhone mute switch on),
+  `expo-speech-recognition` (on-device Swedish speech-to-text for the mic).
 - **Backend = `server/`** — a Node/**Express** API on **Railway** + **Railway Postgres**, calling
   **Claude Opus 4.8**. (The old `worker/` Cloudflare folder is **legacy/unused** — see §7.)
 - **Accounts:** email + password, JWT. State + progress live in the DB.
@@ -183,6 +187,22 @@ Secrets: git-ignored `server/.env` (local dev) **and** Railway service env vars 
    `deploy.env` as `EXPO_TOKEN`, and **run eas with `CI=1`** (its startup check otherwise hangs behind
    the VPN). JS/content-only changes after this → `eas update` (OTA, no full rebuild); native/version
    changes → another `eas build` + bump `buildNumber`.
+
+**On-device feedback round #1 (2026-06-25)** — after installing build 2, the owner reported 4 things:
+1. **No sound when the phone is on silent** → `expo-audio` `setAudioModeAsync({ playsInSilentMode: true })`
+   in `App.js`. Native → ships in **build 1.1.0** (below).
+2. **Mic didn't work on the phone** → native voice never actually ran on iOS (browser STT is web-only).
+   Added real on-device STT (`expo-speech-recognition`, `sv-SE`) in `ConversationScreen`; web keeps the
+   browser path. Native → **build 1.1.0**.
+3. ✅ **Keyboard hid the chat** → scroll-to-end on `keyboardWillShow` (JS). Shipped **OTA** (runtime 1.0.0).
+4. ✅ **Replies ignored the scene / wanted free chat** → rewrote the backend chat prompt (scene-rooted
+   from turn 1, no default "jag heter"; added open small-talk mode) + a **Free talk / Småprat** card.
+   Backend redeployed; app shipped **OTA**.
+
+OTA for #3+#4 is published to branch `production` at runtime **1.0.0** (reaches build 2). The two native
+fixes (#1, #2) ride in **build 1.1.0 (build 1)** — version bumped 1.0.0→1.1.0 so `runtimeVersion`
+segregates OTAs (a voice-using update can never reach a build without the module). Built with
+`eas build -p ios --profile production --auto-submit`.
 
 **Immediate next options (owner picks):** ① ~~deploy to Railway + rebuild~~ ✅ **DONE** • ② Phase-2
 **continuous real-time voice** for the Talking coach • ③ next coach (Listening / Grammar / Reading) •
