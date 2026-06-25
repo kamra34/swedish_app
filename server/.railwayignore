@@ -1,0 +1,6 @@
+# Never upload these to Railway (it provides its own env + installs deps):
+node_modules
+.env
+.env.*
+*.log
+package-lock.json.bak

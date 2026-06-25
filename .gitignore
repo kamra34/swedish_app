@@ -57,3 +57,7 @@ worker/.dev.vars
 server/node_modules/
 server/.env
 .env
+
+# Deploy-session tokens (Railway / Expo) — NEVER commit
+deploy.env
+*.token
