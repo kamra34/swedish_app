@@ -290,5 +290,11 @@ everything ships OTA + backend redeploy.
 words, ~6–8 wks to A1). ③ Author spine, **generate + auto-verify the rest** (paradigm tables/rules are the
 authored exception). ④ Certification **strict & per-skill**.
 
-**Status:** starting Phase 0 + Phase 1 (the en/ett generation+QA engine). Full design detail: the
-`design-svenska-curriculum` workflow synthesis (six expert lenses).
+**Status:** **Phases 0 + 1 DONE** — the generate→native-Swedish-QA→**cache** engine is live
+(`server/src/generate.js`, `POST /practice`, Postgres `practice_items`) with two drill types,
+**en/ett** (tap) and **verb-conjugation present tense** (typed), served instantly from cache and
+reachable via the **Grammar coach** tile → drill menu (`src/screens/PracticeScreen.js`). Verb/noun
+calibration uses completed-lesson vocab. **Next: Phase 2** — author the deep grammar + verb/noun
+paradigm tables + ~500 Kelly words, add more drill types (cloze, definite/plural transform,
+translation), and wire **FSRS** spaced repetition. Full design detail: the `design-svenska-curriculum`
+workflow synthesis (six expert lenses).
