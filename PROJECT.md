@@ -101,6 +101,31 @@ Expo Go over LAN/tunnel does **not** work. Everything must be HTTPS-to-cloud or 
 tap-to-hear pronunciation • app on the iPhone via TestFlight • AI Conversation partner
 (working locally) • this documentation.
 
-**Next:** LLM-generated/randomized scenes + voice input for conversation • more A1 lessons
-(countries/languages, numbers, the en/ett game) • deploy the Worker to Cloudflare •
-sentence-checker mode • SRS for vocab • persist progress.
+**Next:** see §12 — the product is evolving into a coached school with accounts.
+
+---
+
+## 12. Product direction — decided 2026-06-25
+Evolving from "app + AI chat" into a **structured Swedish school**:
+- **Coaches hub:** the home becomes a hub of specialized AI coaches — 🗣️ **Talking** (continuous
+  voice), 📖 **Grammar**, 🎧 **Listening** (passage → questions → score), 📚 **Reading**. The existing
+  lessons/games are one track too. (Coaches can get names/characters when we polish.)
+- **Accounts + DB → Supabase (all-in):** auth + Postgres + **Edge Functions** for the Claude calls
+  (decided to consolidate — migrate the Cloudflare Worker logic into a Supabase Edge Function). The
+  app uses the **anon** key; the **service_role** key + the **Anthropic key** stay server-side (Edge
+  Function secrets / env).
+- **Levels & certification:** an **Examiner** coach runs a **placement test** (sets start level) and
+  **level exams** (listening / reading / grammar / speaking, AI-graded). Pass → **certificate** →
+  unlock the next level (A1→C1). Speaking is graded via transcript + rubric (approximate; refine later).
+- **Voice goal — full real-time, phone-call style** (owner's choice). Pipeline = mic → speech-to-text
+  → Claude → text-to-speech → auto-listen. Claude is text-only (no native voice mode), so we BUILD UP
+  TO full-duplex in stages: a solid push-to-talk auto-loop first, then add interruption/barge-in.
+  Best on the native iPhone; browser for dev.
+- **Data model (planned):** `profiles` (level, name), `progress` (lessons/exercises + scores),
+  `vocab_srs` (review state), `exam_attempts` (per-skill scores, pass/fail), `certificates`.
+
+**Phased build:**
+1. **Foundation** — Supabase accounts + DB + the coaches hub + persisted progress/level. *(current)*
+2. **Full real-time voice** for the Talking coach (auto-loop → barge-in).
+3. **Listening coach.**  4. **Grammar coach.**  5. **Examiner** (placement + level exams + certificates
+   + level unlocking).  Ongoing: more lessons, SRS, and visual polish.
