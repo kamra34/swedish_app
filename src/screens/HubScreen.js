@@ -11,7 +11,7 @@ const COACHES = [
   { id: 'reading', emoji: '📚', title: 'Reading coach', sub: 'Read & answer', ready: false },
 ];
 
-export default function HubScreen({ onOpenConversation, onOpenLesson, onOpenPractice }) {
+export default function HubScreen({ onOpenConversation, onOpenLesson, onOpenPractice, onOpenCourse }) {
   const { user, progress, logout } = useAuth();
   const level = user?.current_level || 'A1';
   const name = user?.display_name || (user?.email ? user.email.split('@')[0] : 'där');
@@ -49,7 +49,17 @@ export default function HubScreen({ onOpenConversation, onOpenLesson, onOpenPrac
         ))}
       </View>
 
-      <Text style={styles.sectionLabel}>A1 · LESSONS</Text>
+      <Text style={styles.sectionLabel}>A1 · COURSE</Text>
+      <Pressable onPress={onOpenCourse} style={({ pressed }) => [styles.courseCard, pressed && styles.pressed]}>
+        <Text style={styles.courseEmoji}>📘</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.courseTitle}>Swedish A1 — taught by Astrid</Text>
+          <Text style={styles.courseSub}>Deep, teacher-led sessions: learn, practise & ask questions.</Text>
+        </View>
+        <Text style={styles.arrow}>›</Text>
+      </Pressable>
+
+      <Text style={styles.sectionLabel}>A1 · QUICK LESSONS</Text>
       {allLessons.map((ls) => {
         const done = completed.has(ls.id);
         return (
@@ -95,6 +105,14 @@ const styles = StyleSheet.create({
   coachEmoji: { fontSize: 28, marginBottom: 8 },
   coachTitle: { fontSize: 15, fontWeight: '800', color: colors.ink },
   coachSub: { fontSize: 12, color: colors.muted, marginTop: 2 },
+
+  courseCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#EEF5FF', borderRadius: radius.md,
+    padding: 18, marginBottom: 22, borderWidth: 1, borderColor: '#CFE0F5',
+  },
+  courseEmoji: { fontSize: 30 },
+  courseTitle: { fontSize: 16, fontWeight: '800', color: colors.ink },
+  courseSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
 
   lesson: {
     backgroundColor: colors.card, borderRadius: radius.md, padding: 16, flexDirection: 'row',

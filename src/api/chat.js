@@ -43,6 +43,13 @@ export const customScene = (p) => request('/scene/custom', { body: p });
 // --- Practice drills (generated + QA-verified by the backend) ---
 export const getPractice = (p) => request('/practice', { body: p });
 
+// --- Teacher-led sessions ---
+export const teachStep = (p) => request('/teach', { body: p });
+export const askTeacher = (id, p) => request('/session/' + id + '/ask', { body: p });
+export const getSessionState = (id) => request('/session/' + id + '/state', { method: 'GET' });
+export const saveSessionState = (id, p) => request('/session/' + id + '/state', { body: p });
+export const getSessionsState = () => request('/sessions/state', { method: 'GET' });
+
 // --- Saved scenes ---
 export const getSavedScenes = () => request('/scenes/saved', { method: 'GET' });
 export const saveScene = (scene) => request('/scenes/saved', { body: { scene } });
