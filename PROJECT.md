@@ -210,12 +210,18 @@ real keyboard fix (#3) ride in the **1.1.0** build line (version bumped so `runt
 a voice-using update can never reach a build without the module). Build with
 `eas build -p ios --profile production --auto-submit`.
 
-**Build history:** `1.0.0(2)` = first full app on TestFlight. `1.1.0(1)` = **rejected by Apple (90683:
-missing `NSPhotoLibraryUsageDescription`** — a linked media module references Photos). `1.1.0(2)` = adds
-the photo purpose string + the real keyboard fix + an adversarial-review pass that also fixed: a mic
-double-start race (`startingRef` guard) and a scene-detection bug (`isGeneral = !scene`, was a prose-keyword
-regex that misclassified scenes containing "free talk"/leading "General"). **Install 1.1.0(2) to get
-everything** (voice, silent-mode audio, keyboard, scene-aware, free-talk).
+**Build history:** `1.0.0(2)` = first full app on TestFlight. `1.1.0(1)` = **rejected by Apple** (90683:
+missing `NSPhotoLibraryUsageDescription` — a linked media module references Photos). `1.1.0(2)` = added
+the photo string + real keyboard fix + review fixes (mic `startingRef` guard; `isGeneral = !scene`) — but
+**crashed on launch.** `1.1.0(3)` = **current.** Fixes the crash + carries everything.
+
+⚠️ **The 1.1.0(2) launch crash — IMPORTANT lesson:** `expo-audio@1.1.1` declares `expo-asset: "*"` as a
+peer dep, so npm pulled the **latest `expo-asset@56` + `expo-constants@56` (SDK 56)** to the top level,
+duplicated against the SDK-54 versions. Two copies of `expo-constants` (loaded at app init) → instant
+crash on open. Fix: `npx expo install expo-asset expo-constants` (pins SDK-54 `12.0.13`/`18.0.13`) +
+`npm dedupe`. **After adding ANY native module, run `npx expo-doctor` — it catches duplicate/wrong-SDK
+native modules that a JS bundle check never will.** Install **1.1.0(3)** to get everything (voice,
+silent-mode audio, keyboard, scene-aware, free-talk).
 
 **Immediate next options (owner picks):** ① ~~deploy to Railway + rebuild~~ ✅ **DONE** • ② Phase-2
 **continuous real-time voice** for the Talking coach • ③ next coach (Listening / Grammar / Reading) •

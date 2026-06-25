@@ -20,11 +20,15 @@
 
 ## Ship changes to the iPhone
 - **Backend is LIVE** at `https://svenska-api-production.up.railway.app` (Railway service `svenska-api`);
-  the app's `src/aiConfig.js` `BACKEND_URL` points at it. **Latest TestFlight build: `1.1.0 (2)`**
+  the app's `src/aiConfig.js` `BACKEND_URL` points at it. **Latest TestFlight build: `1.1.0 (3)`**
   (on-device voice + silent-mode audio + keyboard fix; confirm its Apple processing is VALID). Note:
   adding native modules needs a **`version` bump** (runtimeVersion) so OTAs stay segregated by build.
 - JS/content only → `eas update` (OTA, no rebuild). New native module / version bump → bump `buildNumber`
   in `app.json`, then `eas build -p ios --profile production --auto-submit`.
+- **After adding ANY native module, run `npx expo-doctor` BEFORE building.** A JS bundle check passes even
+  when native deps are wrong. 1.1.0(2) crashed on launch because `expo-audio`'s `expo-asset: "*"` peer dep
+  let npm install SDK-56 `expo-asset`/`expo-constants` next to the SDK-54 ones. Fix was
+  `npx expo install <pkg>` to pin SDK-54 versions + `npm dedupe`.
 - **Both CLIs need a token in git-ignored `deploy.env`** (`RAILWAY_TOKEN` = a Railway **project** token —
   account tokens are rejected; `EXPO_TOKEN`) and **`CI=1`** set (eas-cli's startup check hangs behind the VPN).
 - **Redeploy the backend:** `cd server && railway up --service svenska-api -c` (env vars live as Railway
