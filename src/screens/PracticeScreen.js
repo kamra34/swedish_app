@@ -1,7 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  View, Text, Pressable, ScrollView, ActivityIndicator, TextInput, StyleSheet, Platform,
-} from 'react-native';
+import { useState, useEffect, useMemo } from 'react';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, TextInput, StyleSheet } from 'react-native';
 import { colors, radius } from '../theme';
 import { getPractice } from '../api/chat';
 import { useAuth } from '../AuthContext';
@@ -9,11 +7,13 @@ import { lessons } from '../data/courseData';
 import { speak } from '../speak';
 import SpeakButton from '../components/SpeakButton';
 
-// Phase-1 practice runner: a menu of drill types, each fed by the backend
-// generate → QA → cache engine (POST /practice). Same shell hosts future types.
+// Phase-1/2 practice runner: a menu of drill types, each fed by the backend
+// generate → native-Swedish-QA → cache engine (POST /practice).
 const DRILLS = [
   { type: 'en_ett', emoji: '⚖️', title: 'En eller ett?', sub: 'Noun genders' },
-  { type: 'verb_conj', emoji: '🏃', title: 'Verb i presens', sub: 'Conjugate verbs (present tense)' },
+  { type: 'noun_form', emoji: '🔤', title: 'Bestämd & plural', sub: 'Definite & plural forms' },
+  { type: 'verb_conj', emoji: '🏃', title: 'Verb i presens', sub: 'Present-tense conjugation' },
+  { type: 'cloze', emoji: '✍️', title: 'Fyll i luckan', sub: 'Fill the gap in a sentence' },
 ];
 
 export default function PracticeScreen({ onBack }) {
@@ -23,7 +23,7 @@ export default function PracticeScreen({ onBack }) {
     return lessons.filter((l) => doneIds.has(l.id)).flatMap((l) => (l.vocab || []).map((v) => v.sv));
   }, [progress]);
 
-  const [drill, setDrill] = useState(null); // selected drill type, or null = menu
+  const [drill, setDrill] = useState(null);
 
   if (!drill) {
     return (
@@ -32,11 +32,7 @@ export default function PracticeScreen({ onBack }) {
         <ScrollView contentContainerStyle={styles.body}>
           <Text style={styles.kicker}>CHOOSE A DRILL</Text>
           {DRILLS.map((d) => (
-            <Pressable
-              key={d.type}
-              onPress={() => setDrill(d.type)}
-              style={({ pressed }) => [styles.menuCard, pressed && styles.pressed]}
-            >
+            <Pressable key={d.type} onPress={() => setDrill(d.type)} style={({ pressed }) => [styles.menuCard, pressed && styles.pressed]}>
               <Text style={styles.menuEmoji}>{d.emoji}</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.menuTitle}>{d.title}</Text>
@@ -50,25 +46,23 @@ export default function PracticeScreen({ onBack }) {
       </View>
     );
   }
-
   return <DrillRunner key={drill} type={drill} knownWords={knownWords} onExit={() => setDrill(null)} />;
 }
 
 function DrillRunner({ type, knownWords, onExit }) {
   const meta = DRILLS.find((d) => d.type === type) || {};
+  const isTap = type === 'en_ett';
   const [items, setItems] = useState([]);
   const [idx, setIdx] = useState(0);
   const [answered, setAnswered] = useState(false);
-  const [picked, setPicked] = useState(null);   // en_ett
-  const [typed, setTyped] = useState('');         // verb_conj
+  const [picked, setPicked] = useState(null);
+  const [typed, setTyped] = useState('');
   const [wasRight, setWasRight] = useState(false);
   const [correct, setCorrect] = useState(0);
-  const [status, setStatus] = useState('loading'); // loading | ready | error | done
-  const inputRef = useRef(null);
+  const [status, setStatus] = useState('loading');
 
   const load = async () => {
-    setStatus('loading');
-    setItems([]); setIdx(0); reset(); setCorrect(0);
+    setStatus('loading'); setItems([]); setIdx(0); reset(); setCorrect(0);
     try {
       const d = await getPractice({ type, count: 8, knownWords });
       if (d.items && d.items.length) { setItems(d.items); setStatus('ready'); }
@@ -76,36 +70,35 @@ function DrillRunner({ type, knownWords, onExit }) {
     } catch { setStatus('error'); }
   };
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const reset = () => { setAnswered(false); setPicked(null); setTyped(''); setWasRight(false); };
+
   const item = items[idx];
-
-  const norm = (s) => String(s || '').trim().toLowerCase().replace(/^(jag|du|han|hon|vi|ni|de)\s+/i, '');
-
-  const grade = (ok, spoken) => { setAnswered(true); setWasRight(ok); if (ok) setCorrect((c) => c + 1); if (spoken) speak(spoken); };
-  const pickEnEtt = (a) => { if (answered || !item) return; setPicked(a); grade(a === item.article, `${item.article} ${item.noun}`); };
-  const checkVerb = () => { if (answered || !item || !typed.trim()) return; grade(norm(typed) === norm(item.present), `jag ${item.present}`); };
-
-  const next = () => {
-    if (idx + 1 >= items.length) setStatus('done');
-    else { setIdx((i) => i + 1); reset(); }
+  const answerText = item ? (type === 'verb_conj' ? item.present : isTap ? item.article : item.answer) : '';
+  const spoken = !item ? '' :
+    type === 'en_ett' ? `${item.article} ${item.noun}` :
+    type === 'verb_conj' ? `jag ${item.present}` :
+    type === 'cloze' ? `${item.before} ${item.answer} ${item.after}` : item.answer;
+  const norm = (s) => {
+    let x = String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (type === 'verb_conj') x = x.replace(/^(jag|du|han|hon|vi|ni|de)\s+/, '');
+    return x;
   };
+
+  const grade = (ok) => { setAnswered(true); setWasRight(ok); if (ok) setCorrect((c) => c + 1); if (spoken) speak(spoken); };
+  const pickEnEtt = (a) => { if (answered || !item) return; setPicked(a); grade(a === item.article); };
+  const checkTyped = () => { if (answered || !item || !typed.trim()) return; grade(norm(typed) === norm(answerText)); };
+  const next = () => { if (idx + 1 >= items.length) setStatus('done'); else { setIdx((i) => i + 1); reset(); } };
 
   return (
     <View style={styles.root}>
       <Header title={meta.title || 'Practice'} onBack={onExit} backLabel="Drills" />
       {(status === 'ready' || status === 'done') && (
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${((status === 'done' ? items.length : idx) / Math.max(items.length, 1)) * 100}%` }]} />
-        </View>
+        <View style={styles.track}><View style={[styles.fill, { width: `${((status === 'done' ? items.length : idx) / Math.max(items.length, 1)) * 100}%` }]} /></View>
       )}
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         {status === 'loading' && (
-          <View style={styles.center}>
-            <ActivityIndicator color={colors.blue} />
-            <Text style={styles.centerText}>Creating fresh practice…</Text>
-          </View>
+          <View style={styles.center}><ActivityIndicator color={colors.blue} /><Text style={styles.centerText}>Creating fresh practice…</Text></View>
         )}
         {status === 'error' && (
           <View style={styles.center}>
@@ -116,7 +109,8 @@ function DrillRunner({ type, knownWords, onExit }) {
 
         {status === 'ready' && item && (
           <View style={styles.card}>
-            {type === 'en_ett' ? (
+            {/* ---- prompt (per type) ---- */}
+            {type === 'en_ett' && (
               <>
                 <Text style={styles.kicker}>PICK THE ARTICLE · {idx + 1}/{items.length}</Text>
                 <View style={styles.promptRow}><Text style={styles.blank}>___ </Text><Text style={styles.noun}>{item.noun}</Text></View>
@@ -134,46 +128,50 @@ function DrillRunner({ type, knownWords, onExit }) {
                   })}
                 </View>
               </>
-            ) : (
+            )}
+
+            {type === 'verb_conj' && (
               <>
                 <Text style={styles.kicker}>PRESENT TENSE · {idx + 1}/{items.length}</Text>
                 <Text style={styles.noun}>{item.infinitive}</Text>
                 <Text style={styles.gloss}>({item.en})</Text>
-                <View style={styles.verbRow}>
-                  <Text style={styles.verbLead}>jag</Text>
-                  <TextInput
-                    ref={inputRef}
-                    style={[styles.verbInput, answered && (wasRight ? styles.verbInputRight : styles.verbInputWrong)]}
-                    value={typed}
-                    onChangeText={setTyped}
-                    editable={!answered}
-                    placeholder="…"
-                    placeholderTextColor={colors.muted}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    onSubmitEditing={checkVerb}
-                    returnKeyType="done"
-                  />
-                </View>
-                {!answered && (
-                  <Pressable onPress={checkVerb} disabled={!typed.trim()} style={({ pressed }) => [styles.cta, !typed.trim() && styles.ctaDisabled, pressed && styles.pressed]}>
-                    <Text style={styles.ctaText}>Check</Text>
-                  </Pressable>
-                )}
+                <View style={styles.typedRow}><Text style={styles.lead}>jag</Text>{renderInput()}</View>
               </>
+            )}
+
+            {type === 'noun_form' && (
+              <>
+                <Text style={styles.kicker}>{item.target === 'plural' ? 'PLURAL FORM' : 'DEFINITE FORM'} · {idx + 1}/{items.length}</Text>
+                <Text style={styles.noun}>{item.base}</Text>
+                <Text style={styles.gloss}>
+                  {item.target === 'plural' ? `write the plural (more than one ${item.en})` : `write “the ${item.en}”`}
+                </Text>
+                <View style={styles.typedRow}>{renderInput()}</View>
+              </>
+            )}
+
+            {type === 'cloze' && (
+              <>
+                <Text style={styles.kicker}>FILL THE GAP · {idx + 1}/{items.length}</Text>
+                <Text style={styles.cloze}>{item.before}<Text style={styles.clozeBlank}> ___ </Text>{item.after}</Text>
+                <Text style={styles.gloss}>({item.hint})</Text>
+                <View style={styles.typedRow}>{renderInput()}</View>
+              </>
+            )}
+
+            {!isTap && !answered && (
+              <Pressable onPress={checkTyped} disabled={!typed.trim()} style={({ pressed }) => [styles.cta, !typed.trim() && styles.ctaDisabled, pressed && styles.pressed]}>
+                <Text style={styles.ctaText}>Check</Text>
+              </Pressable>
             )}
 
             {answered && (
               <View style={styles.feedback}>
                 <View style={styles.feedbackTop}>
                   <Text style={[styles.feedbackMark, wasRight ? styles.ok : styles.no]}>{wasRight ? '✓ Rätt!' : '✗ Inte riktigt'}</Text>
-                  <SpeakButton text={type === 'en_ett' ? `${item.article} ${item.noun}` : `jag ${item.present}`} />
+                  <SpeakButton text={spoken} />
                 </View>
-                <Text style={styles.feedbackText}>
-                  {type === 'en_ett'
-                    ? <>It’s <Text style={styles.feedbackStrong}>{item.article} {item.noun}</Text> — {item.en}.</>
-                    : <>It’s <Text style={styles.feedbackStrong}>jag {item.present}</Text> ({item.infinitive}, {item.en}).</>}
-                </Text>
+                <Text style={styles.feedbackText}>{feedbackLine()}</Text>
                 <Pressable onPress={next} style={({ pressed }) => [styles.cta, pressed && styles.pressed]}>
                   <Text style={styles.ctaText}>{idx + 1 >= items.length ? 'See result' : 'Next'}</Text>
                 </Pressable>
@@ -194,6 +192,23 @@ function DrillRunner({ type, knownWords, onExit }) {
       </ScrollView>
     </View>
   );
+
+  function renderInput() {
+    return (
+      <TextInput
+        style={[styles.typedInput, answered && (wasRight ? styles.inputRight : styles.inputWrong)]}
+        value={typed} onChangeText={setTyped} editable={!answered}
+        placeholder="…" placeholderTextColor={colors.muted}
+        autoCapitalize="none" autoCorrect={false} onSubmitEditing={checkTyped} returnKeyType="done"
+      />
+    );
+  }
+  function feedbackLine() {
+    if (type === 'en_ett') return <>It’s <Text style={styles.strong}>{item.article} {item.noun}</Text> — {item.en}.</>;
+    if (type === 'verb_conj') return <>It’s <Text style={styles.strong}>jag {item.present}</Text> ({item.infinitive}, {item.en}).</>;
+    if (type === 'noun_form') return <>It’s <Text style={styles.strong}>{item.answer}</Text> ({item.en}).</>;
+    return <><Text style={styles.strong}>{item.before} {item.answer} {item.after}</Text> — {item.en}.</>;
+  }
 }
 
 function Header({ title, onBack, backLabel }) {
@@ -229,7 +244,9 @@ const styles = StyleSheet.create({
   promptRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', marginTop: 6 },
   blank: { fontSize: 30, fontWeight: '800', color: colors.muted },
   noun: { fontSize: 30, fontWeight: '800', color: colors.ink, textAlign: 'center' },
-  gloss: { fontSize: 16, color: colors.muted, textAlign: 'center', marginTop: 4 },
+  gloss: { fontSize: 16, color: colors.muted, textAlign: 'center', marginTop: 6 },
+  cloze: { fontSize: 21, fontWeight: '700', color: colors.ink, textAlign: 'center', lineHeight: 30 },
+  clozeBlank: { color: colors.blue, fontWeight: '800' },
 
   choices: { flexDirection: 'row', gap: 12, marginTop: 24 },
   choice: { flex: 1, backgroundColor: colors.bg, borderRadius: radius.md, paddingVertical: 18, alignItems: 'center', borderWidth: 1.5, borderColor: colors.line },
@@ -237,11 +254,11 @@ const styles = StyleSheet.create({
   choiceWrong: { backgroundColor: '#FBE2E0', borderColor: colors.red },
   choiceText: { fontSize: 22, fontWeight: '800', color: colors.ink },
 
-  verbRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 22 },
-  verbLead: { fontSize: 22, fontWeight: '700', color: colors.muted },
-  verbInput: { minWidth: 150, backgroundColor: colors.bg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, paddingHorizontal: 14, paddingVertical: 10, fontSize: 22, fontWeight: '800', color: colors.ink, textAlign: 'center' },
-  verbInputRight: { backgroundColor: '#E7F7EE', borderColor: colors.green },
-  verbInputWrong: { backgroundColor: '#FBE2E0', borderColor: colors.red },
+  typedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 18 },
+  lead: { fontSize: 22, fontWeight: '700', color: colors.muted },
+  typedInput: { minWidth: 150, backgroundColor: colors.bg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, paddingHorizontal: 14, paddingVertical: 10, fontSize: 22, fontWeight: '800', color: colors.ink, textAlign: 'center' },
+  inputRight: { backgroundColor: '#E7F7EE', borderColor: colors.green },
+  inputWrong: { backgroundColor: '#FBE2E0', borderColor: colors.red },
 
   feedback: { marginTop: 22 },
   feedbackTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -249,7 +266,7 @@ const styles = StyleSheet.create({
   ok: { color: colors.green },
   no: { color: colors.red },
   feedbackText: { fontSize: 16, color: colors.ink, marginTop: 8, lineHeight: 22 },
-  feedbackStrong: { fontWeight: '800', color: colors.blue },
+  strong: { fontWeight: '800', color: colors.blue },
 
   cta: { marginTop: 20, backgroundColor: colors.blue, borderRadius: radius.md, paddingVertical: 15, alignItems: 'center' },
   ctaDisabled: { backgroundColor: '#B9C6D2' },
