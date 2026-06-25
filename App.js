@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, StyleSheet, View, ActivityIndicator, Text } from 'react-native';
+import { setAudioModeAsync } from 'expo-audio';
 import { colors } from './src/theme';
 import { lessons } from './src/data/courseData';
 import { AuthProvider, useAuth } from './src/AuthContext';
@@ -49,6 +50,15 @@ function Main() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Let Swedish text-to-speech play even when the iPhone's silent switch is on
+    // (like videos/voice apps do), instead of being muted by the hardware mute.
+    // Guarded so it can never crash the web preview (where it's a no-op/absent).
+    try {
+      setAudioModeAsync({ playsInSilentMode: true })?.catch?.(() => {});
+    } catch {}
+  }, []);
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />

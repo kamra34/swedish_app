@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nosrati.svenska",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -36,6 +36,16 @@
     },
     "updates": {
       "url": "https://u.expo.dev/aba57bd3-2045-4ebe-8e18-150f424944dd"
-    }
+    },
+    "plugins": [
+      "expo-audio",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Svenska to use the microphone so you can speak your Swedish replies.",
+          "speechRecognitionPermission": "Allow Svenska to recognise your Swedish speech to transcribe your replies."
+        }
+      ]
+    ]
   }
 }

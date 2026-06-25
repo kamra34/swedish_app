@@ -11,6 +11,7 @@ import {
   sendChat, fetchScenes, customScene, getSavedScenes, saveScene, deleteSavedScene,
 } from '../api/chat';
 import SpeakButton from '../components/SpeakButton';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 
 // --- normalize the various scene shapes into one ---
 const normGen = (s, id) => ({
@@ -174,18 +175,54 @@ export default function ConversationScreen({ onBack }) {
   };
 
   // --- voice ---
+  // Native (iOS/Android) on-device speech-to-text events. On web we use the
+  // browser's SpeechRecognition instead (in startVoice), so these never fire there.
+  useSpeechRecognitionEvent('result', (e) => {
+    const t = e?.results?.[0]?.transcript;
+    if (typeof t === 'string') setInput(t);
+  });
+  useSpeechRecognitionEvent('end', () => setListening(false));
+  useSpeechRecognitionEvent('error', (e) => {
+    setListening(false);
+    if (e?.error && e.error !== 'aborted' && e.error !== 'no-speech') {
+      setError('🎤 Could not hear that clearly — try again, or type your reply.');
+    }
+  });
+
   const stopVoice = () => {
-    try { recognitionRef.current?.stop?.(); } catch {}
-    recognitionRef.current = null;
+    if (Platform.OS === 'web') {
+      try { recognitionRef.current?.stop?.(); } catch {}
+      recognitionRef.current = null;
+    } else {
+      try { ExpoSpeechRecognitionModule.stop(); } catch {}
+    }
     setListening(false);
   };
-  const startVoice = () => {
+
+  const startVoice = async () => {
     if (listening) { stopVoice(); return; }
-    const SR = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+
+    // Native: on-device speech recognition (works in the TestFlight/App Store build).
     if (Platform.OS !== 'web') {
-      setError('🎤 On-device voice replies are coming in the next app update — for now, just type your reply.');
+      try {
+        const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        if (!perm?.granted) {
+          setError('🎤 Allow microphone & speech access in iPhone Settings to talk to the coach.');
+          return;
+        }
+        setError(null);
+        setInput('');
+        setListening(true);
+        ExpoSpeechRecognitionModule.start({ lang: 'sv-SE', interimResults: true });
+      } catch (err) {
+        setListening(false);
+        setError('🎤 Voice could not start — type your reply for now.');
+      }
       return;
     }
+
+    // Web: browser SpeechRecognition (the dev preview).
+    const SR = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
     if (!SR) {
       setError('🎤 This browser doesn’t support voice input — just type your reply.');
       return;
