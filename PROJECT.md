@@ -113,10 +113,11 @@ Expo Go over LAN/tunnel does **not** work. Everything must be HTTPS-to-cloud or 
 - `PROJECT.md` (this), `CLAUDE.md`, `AGENTS.md` — docs.
 
 ## 11. Status & roadmap
-**Done:** A1 Lesson 1 + Sentence Builder game • tap-to-hear pronunciation • app on the iPhone via
-TestFlight (early build) • **accounts (email+password) + Railway Postgres + Node API** • **coaches
-hub** • Talking coach with **generated/custom/saved scenes**, voice input, and gentle corrections •
-**progress synced to the account** • this documentation.
+**Done:** A1 Lesson 1 + Sentence Builder game • tap-to-hear pronunciation • **accounts (email+password)
++ Railway Postgres + Node API** • **coaches hub** • Talking coach with **generated/custom/saved
+scenes**, voice input, and gentle corrections • **progress synced to the account** • **backend
+deployed live to Railway** (`svenska-api`) • **current app shipped to TestFlight** (v1.0.0 build 2,
+2026-06-25) • this documentation.
 
 **Next:** see §12 and §13.
 
@@ -162,17 +163,28 @@ npm --prefix server start     # API  → http://localhost:8787   (reads server/.
 ```
 Log in with **test@example.com / test1234**, or sign up.
 
-**Backend is the Railway Node API in `server/`** (Postgres on Railway). `worker/` (Cloudflare) is
-**legacy/unused**. Secrets are in git-ignored `server/.env`.
+**Backend is the Railway Node API in `server/` — now DEPLOYED & LIVE** at
+**`https://svenska-api-production.up.railway.app`** (Railway project "Svenska", service
+**`svenska-api`**, `production` env). Postgres is reached internally via the reference var
+`DATABASE_URL = ${{Postgres.DATABASE_URL}}`. `worker/` (Cloudflare) is **legacy/unused**.
+Secrets: git-ignored `server/.env` (local dev) **and** Railway service env vars (prod) —
+`ANTHROPIC_API_KEY`, `JWT_SECRET`, `DATABASE_URL`. **Redeploy the backend** with
+`cd server && railway up --service svenska-api -c` (needs a Railway **project** token in git-ignored
+`deploy.env` as `RAILWAY_TOKEN`; the CLI rejects *account* tokens — only project tokens/`railway login` work).
 
-**NOT done yet (the two gaps to get the current app on the iPhone):**
-1. **Deploy `server/` to Railway** (it only runs locally so far). Use the `svenska-cli` token:
-   `railway up`, set env vars (internal `DATABASE_URL`, `ANTHROPIC_API_KEY`, `JWT_SECRET`).
-2. **Point the app at it + rebuild:** set `src/aiConfig.js` `BACKEND_URL` to the public Railway URL,
-   then `eas build -p ios --profile production` + `eas submit` (a **full rebuild** is required — the
-   TestFlight build is stale and lacks `expo-speech`, AsyncStorage, accounts, hub, and voice).
+**Getting the current app on the iPhone — status (2026-06-25):**
+1. ✅ **Backend deployed to Railway** (live URL above; `/`, `/auth/login`, `/chat` all verified in prod).
+2. ✅ **App pointed at it:** `src/aiConfig.js` `BACKEND_URL` → the Railway URL (commit `ecfe3f4`);
+   iOS `buildNumber` bumped 1→2.
+3. ✅ **iOS rebuilt + submitted to TestFlight (2026-06-25):** `eas build -p ios --profile production
+   --auto-submit` built **v1.0.0 (build 2)** and uploaded it to App Store Connect (build id
+   `88689880`). After Apple finishes processing (~5–10 min), install it via TestFlight:
+   https://appstoreconnect.apple.com/apps/6783824683/testflight/ios . Build needs an Expo token in
+   `deploy.env` as `EXPO_TOKEN`, and **run eas with `CI=1`** (its startup check otherwise hangs behind
+   the VPN). JS/content-only changes after this → `eas update` (OTA, no full rebuild); native/version
+   changes → another `eas build` + bump `buildNumber`.
 
-**Immediate next options (owner picks):** ① deploy to Railway + rebuild for the phone • ② Phase-2
+**Immediate next options (owner picks):** ① ~~deploy to Railway + rebuild~~ ✅ **DONE** • ② Phase-2
 **continuous real-time voice** for the Talking coach • ③ next coach (Listening / Grammar / Reading) •
 ④ Examiner (placement + level exams + certificates) • ⑤ more A1 lessons • ⑥ SRS. Visual polish is
 intentionally deferred.

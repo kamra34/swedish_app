@@ -19,9 +19,15 @@
 - Test account: `test@example.com` / `test1234`.
 
 ## Ship changes to the iPhone
-- JS/content only → `eas update` (OTA). New native module / version bump → `eas build` + `eas submit`.
-- The TestFlight build is **stale** (early A1 lesson only). Getting the current app on the phone needs:
-  deploy `server/` to Railway, point `src/aiConfig.js` `BACKEND_URL` at it, then `eas build` + `eas submit`.
+- **Backend is LIVE** at `https://svenska-api-production.up.railway.app` (Railway service `svenska-api`);
+  the app's `src/aiConfig.js` `BACKEND_URL` points at it. The **current app is on TestFlight** (v1.0.0
+  build 2, shipped 2026-06-25).
+- JS/content only → `eas update` (OTA, no rebuild). New native module / version bump → bump `buildNumber`
+  in `app.json`, then `eas build -p ios --profile production --auto-submit`.
+- **Both CLIs need a token in git-ignored `deploy.env`** (`RAILWAY_TOKEN` = a Railway **project** token —
+  account tokens are rejected; `EXPO_TOKEN`) and **`CI=1`** set (eas-cli's startup check hangs behind the VPN).
+- **Redeploy the backend:** `cd server && railway up --service svenska-api -c` (env vars live as Railway
+  service vars: `ANTHROPIC_API_KEY`, `JWT_SECRET`, `DATABASE_URL=${{Postgres.DATABASE_URL}}`).
 
 ## Don't
 - Don't put the Anthropic key (or any secret) in the app or git. Secrets live in `server/.env`
