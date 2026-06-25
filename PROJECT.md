@@ -117,7 +117,9 @@ Expo Go over LAN/tunnel does **not** work. Everything must be HTTPS-to-cloud or 
 - `PROJECT.md` (this), `CLAUDE.md`, `AGENTS.md` — docs.
 
 ## 11. Status & roadmap
-**Done:** A1 Lesson 1 + Sentence Builder game • tap-to-hear pronunciation • **accounts (email+password)
+**Done:** **A1 lessons 1–6** (Rivstart sequence: greetings → countries/languages → en/ett → definite →
+plural/numbers → family; native-Swedish-verified) + Sentence Builder game • **hands-free real-time voice
+(call mode)** • tap-to-hear pronunciation • **accounts (email+password)
 + Railway Postgres + Node API** • **coaches hub** • Talking coach with **generated/custom/saved
 scenes**, voice input, and gentle corrections • **progress synced to the account** • **backend
 deployed live to Railway** (`svenska-api`) • **current app shipped to TestFlight** (v1.0.0 build 2,
@@ -158,8 +160,10 @@ Evolving from "app + AI chat" into a **structured Swedish school**:
 
 ## 13. CURRENT STATE — read this first to continue (updated 2026-06-25)
 
-**What works (end-to-end, live):** accounts, the coaches hub, A1 lessons with saved progress, and the
-Talking coach — **scene-aware + free-talk** chat (level-aware, English + gentle correction), Swedish TTS
+**What works (end-to-end, live):** accounts, the coaches hub, **six A1 lessons** (a1-1…a1-6, greetings→
+family — Rivstart sequence, native-verified; a1-7/a1-8 are locked "coming next" stubs) with saved
+progress, and the Talking coach — **scene-aware + free-talk** chat (level-aware, English + gentle
+correction; its known vocab now tracks **completed** lessons), Swedish TTS
 (plays even on silent), **on-device voice input**, and **hands-free "call mode"** (continuous
 listen→reply→speak→auto-listen) — all backed by the deployed Railway API. **Latest native TestFlight build:
 `1.1.0 (3)`** (launches; verified VALID); **call mode shipped on top via OTA** (runtime 1.1.0, commit
