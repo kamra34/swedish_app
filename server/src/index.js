@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool, initSchema } from './db.js';
 import { chatReply, generateScenes, generateCustomScene } from './claude.js';
+import { generateDrills } from './generate.js';
 
 const app = express();
 app.use(cors());
@@ -125,6 +126,15 @@ app.post('/scene/custom', auth, async (req, res) => {
     res.json(await generateCustomScene(req.body));
   } catch (e) {
     res.status(502).json({ error: 'claude_error', detail: String(e.message) });
+  }
+});
+
+// ---- Practice drills (generated + native-Swedish QA-verified) ----
+app.post('/practice', auth, async (req, res) => {
+  try {
+    res.json(await generateDrills(req.body));
+  } catch (e) {
+    res.status(502).json({ error: 'generate_error', detail: String(e.message) });
   }
 });
 
