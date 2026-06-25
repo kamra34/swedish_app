@@ -239,3 +239,56 @@ lessons • ⑥ SRS. Visual polish is intentionally deferred.
 **Conventions:** commit messages end with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 Never put secrets in the app or git. Don't bump the Expo SDK off 54. The owner is a non-coder — build
 and explain plainly; do the credential/setup steps for them where possible.
+
+---
+
+## 14. CURRICULUM ARCHITECTURE — the master plan (decided 2026-06-25)
+
+**Why:** 6 hand-authored lessons ≠ real A1. The goal is that **finishing a level genuinely certifies it**
+(speaking, listening, reading, grammar, vocab) — for A1, then A2→C1. You cannot hand-author the thousands
+of practice items / texts / exam questions that requires. So:
+
+**Core idea — a thin authored SPINE + an AI-generated BODY + a QA gate + SRS + strict exams:**
+- **SPINE (author once per level; small, must be 100% correct; ships OTA as data):** the syllabus tree
+  (levels→units→lessons, Rivstart order); **grammar rules + paradigm tables** (the 4 verb groups, the 5
+  plural declensions, adjective agreement, en/ett) — *authored, NEVER generated*; curated **vocab sets**
+  (Kelly list); **DrillSpecs** (recipes: "generate N en/ett items from words taught so far, A1, exact-match
+  grade"); **ExamBlueprints** (skill×difficulty mix).
+- **BODY (the Claude backend generates forever):** every drill, cloze, reading passage, listening script,
+  exam question — generated on demand, **calibrated to the learner's `knownWords`/`knownGrammar`** (already
+  threaded through the app), **cached in Postgres** so cost amortises to ~0.
+- **QA gate (load-bearing):** no generated item is shown raw — a *second* Claude call (native-Swedish-teacher
+  verifier: correct/natural Swedish, answer key matches, exactly one right MCQ answer, in-scope vocab, real
+  A1 level) passes/fixes/discards each item. (Same multi-agent verification that found 0 errors in lessons.)
+- **Deep trainers** fall out of the paradigm tables: a **Verb Trainer** (~150 A1 verbs × forms) and an
+  **en/ett + noun Trainer** (~300 A1 nouns × gender/forms). Author the rows once; generate endless drills.
+- **SRS:** FSRS, server-side, **item = LEMMA not surface form** (`bil`/`bilen`/`bilar` → one item; gender &
+  inflections are gradeable facets). ~0.90 retention, 8–12 new words/day, ≤60 reviews/day (~10 min/day).
+- **Examiner:** placement test + per-skill A1 exams (listening/reading ≥70%, grammar/vocab ≥75%, speaking
+  ≥2.5/4) **+ ≥80% of A1 words mastered in SRS**; **per-skill, no skill left behind** → "Certified A1" →
+  unlock A2. Exams draw fresh verified items each attempt (can't memorise the test).
+
+**A1 "done" bar:** ~500 active lemmas mastered, ~35 grammar points, ~40 functional situations, all 5 skills
+passed. (Today ≈ 15%.)
+
+**Data model (all additive to the current Postgres schema; new tables auto-created on boot):** spine in app
+data files (`src/data/curriculum/`, OTA); `vocab_items` (Kelly), `generated_item`/`exam_items` cache,
+`vocab_srs`, `skill_mastery`, `attempt_log`, `exam_attempts`, `certificates` in Postgres. No native modules →
+everything ships OTA + backend redeploy.
+
+**Roadmap (each phase ships OTA / redeploy):**
+0. **Spine refactor** — reshape `courseData.js` into the curriculum shape (lessons render identically).
+1. **Generation+QA engine ← FIRST BUILD** — `server/src/generate.js` (cache-first → Claude generate →
+   Swedish-QA → cache) + `/practice`; ship **en/ett** + **verb-conjugation** drills end-to-end.
+2. **Deep A1** — author the ~450 paradigm rows + remaining A1 grammar/units + ~500 words; more drill types;
+   wire FSRS.
+3. **Listening + Reading coaches** — passage/script generators (listening reuses on-device Swedish TTS).
+4. **Examiner** — placement + A1 exam (all 5 skills) → certificate → unlock A2. *Now A1 is certifiable.*
+5. **A2→C1 by DATA, not code** — each level = author its spine; the same engine certifies it.
+
+**Decisions (owner, 2026-06-25):** ① **engine first** (not more lessons). ② **~10 min/day** pace (~500
+words, ~6–8 wks to A1). ③ Author spine, **generate + auto-verify the rest** (paradigm tables/rules are the
+authored exception). ④ Certification **strict & per-skill**.
+
+**Status:** starting Phase 0 + Phase 1 (the en/ett generation+QA engine). Full design detail: the
+`design-svenska-curriculum` workflow synthesis (six expert lenses).
