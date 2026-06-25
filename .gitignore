@@ -52,3 +52,8 @@ worker/node_modules/
 worker/.wrangler/
 .dev.vars
 worker/.dev.vars
+
+# Railway API server (NEVER commit secrets)
+server/node_modules/
+server/.env
+.env
