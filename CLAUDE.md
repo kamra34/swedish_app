@@ -20,8 +20,9 @@
 
 ## Ship changes to the iPhone
 - **Backend is LIVE** at `https://svenska-api-production.up.railway.app` (Railway service `svenska-api`);
-  the app's `src/aiConfig.js` `BACKEND_URL` points at it. The **current app is on TestFlight** (v1.0.0
-  build 2, shipped 2026-06-25).
+  the app's `src/aiConfig.js` `BACKEND_URL` points at it. **Latest TestFlight build: `1.1.0 (2)`**
+  (on-device voice + silent-mode audio + keyboard fix; confirm its Apple processing is VALID). Note:
+  adding native modules needs a **`version` bump** (runtimeVersion) so OTAs stay segregated by build.
 - JS/content only → `eas update` (OTA, no rebuild). New native module / version bump → bump `buildNumber`
   in `app.json`, then `eas build -p ios --profile production --auto-submit`.
 - **Both CLIs need a token in git-ignored `deploy.env`** (`RAILWAY_TOKEN` = a Railway **project** token —

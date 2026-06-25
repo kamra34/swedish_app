@@ -156,14 +156,16 @@ Evolving from "app + AI chat" into a **structured Swedish school**:
 
 ## 13. CURRENT STATE — read this first to continue (updated 2026-06-25)
 
-**What works right now (in the local web preview):** accounts, the coaches hub, lessons with
-saved progress, and the full Talking coach (generated/custom/saved scenes, level-aware chat,
-pronunciation, voice input).
+**What works (end-to-end, live):** accounts, the coaches hub, A1 lessons with saved progress, and the
+Talking coach — **scene-aware + free-talk** chat (level-aware, English + gentle correction), Swedish TTS
+(plays even on silent), and **on-device voice input** on the phone — all backed by the deployed Railway
+API. **Latest TestFlight build: `1.1.0 (2)`** (see Build history below; confirm its Apple processing is VALID).
 
-**Run it locally (both needed):**
+**Run it locally:**
 ```
-npx expo start --web          # app  → http://localhost:8081
-npm --prefix server start     # API  → http://localhost:8787   (reads server/.env; RESTART after editing server/)
+npx expo start --web          # app → http://localhost:8081  (talks to the LIVE Railway API by default)
+npm --prefix server start     # API → http://localhost:8787  (ONLY if changing the backend; then flip
+                              #   src/aiConfig.js BACKEND_URL to LOCAL and RESTART node after each edit)
 ```
 Log in with **test@example.com / test1234**, or sign up.
 
