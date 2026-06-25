@@ -40,6 +40,9 @@ export const sendChat = (p) => request('/chat', { body: p });
 export const fetchScenes = (p) => request('/scenes', { body: p });
 export const customScene = (p) => request('/scene/custom', { body: p });
 
+// --- Practice drills (generated + QA-verified by the backend) ---
+export const getPractice = (p) => request('/practice', { body: p });
+
 // --- Saved scenes ---
 export const getSavedScenes = () => request('/scenes/saved', { method: 'GET' });
 export const saveScene = (scene) => request('/scenes/saved', { body: { scene } });

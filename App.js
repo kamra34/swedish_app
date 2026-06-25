@@ -9,6 +9,7 @@ import AuthScreen from './src/screens/AuthScreen';
 import HubScreen from './src/screens/HubScreen';
 import LessonScreen from './src/screens/LessonScreen';
 import ConversationScreen from './src/screens/ConversationScreen';
+import PracticeScreen from './src/screens/PracticeScreen';
 import { apiSaveProgress } from './src/api/chat';
 
 function Main() {
@@ -28,6 +29,7 @@ function Main() {
   const openLesson = (id) => setNav({ screen: 'lesson', lessonId: id });
   const goHome = () => setNav({ screen: 'home' });
   const openConversation = () => setNav({ screen: 'conversation' });
+  const openPractice = () => setNav({ screen: 'practice' });
   const completeLesson = async (id) => {
     try {
       await apiSaveProgress(id);
@@ -40,11 +42,12 @@ function Main() {
 
   return (
     <View style={styles.flex}>
-      {nav.screen === 'home' && <HubScreen onOpenConversation={openConversation} onOpenLesson={openLesson} />}
+      {nav.screen === 'home' && <HubScreen onOpenConversation={openConversation} onOpenLesson={openLesson} onOpenPractice={openPractice} />}
       {nav.screen === 'lesson' && currentLesson && (
         <LessonScreen lesson={currentLesson} onBack={goHome} onComplete={() => completeLesson(currentLesson.id)} />
       )}
       {nav.screen === 'conversation' && <ConversationScreen onBack={goHome} />}
+      {nav.screen === 'practice' && <PracticeScreen onBack={goHome} />}
     </View>
   );
 }

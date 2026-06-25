@@ -6,12 +6,12 @@ import { useAuth } from '../AuthContext';
 
 const COACHES = [
   { id: 'talking', emoji: '🗣️', title: 'Talking coach', sub: 'Practise speaking', ready: true },
-  { id: 'grammar', emoji: '📖', title: 'Grammar coach', sub: 'Rules & drills', ready: false },
+  { id: 'grammar', emoji: '📖', title: 'Grammar coach', sub: 'en/ett drills', ready: true },
   { id: 'listening', emoji: '🎧', title: 'Listening coach', sub: 'Hear & answer', ready: false },
   { id: 'reading', emoji: '📚', title: 'Reading coach', sub: 'Read & answer', ready: false },
 ];
 
-export default function HubScreen({ onOpenConversation, onOpenLesson }) {
+export default function HubScreen({ onOpenConversation, onOpenLesson, onOpenPractice }) {
   const { user, progress, logout } = useAuth();
   const level = user?.current_level || 'A1';
   const name = user?.display_name || (user?.email ? user.email.split('@')[0] : 'där');
@@ -36,7 +36,10 @@ export default function HubScreen({ onOpenConversation, onOpenLesson }) {
           <Pressable
             key={c.id}
             disabled={!c.ready}
-            onPress={() => c.id === 'talking' && onOpenConversation()}
+            onPress={() => {
+              if (c.id === 'talking') onOpenConversation();
+              else if (c.id === 'grammar') onOpenPractice();
+            }}
             style={({ pressed }) => [styles.coach, !c.ready && styles.coachLocked, pressed && c.ready && styles.pressed]}
           >
             <Text style={styles.coachEmoji}>{c.emoji}</Text>
