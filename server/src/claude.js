@@ -38,7 +38,9 @@ function chatSystem(p) {
   const words = p.knownWords.length ? p.knownWords.join(', ') : '(only a handful so far)';
   const grammar = p.knownGrammar.length ? p.knownGrammar.join('; ') : 'basic greetings';
   const scene = String(p.scene || '').trim();
-  const isGeneral = !scene || /^general\b|open small talk|free talk/i.test(scene);
+  // The app signals "free talk" by sending an empty scene; any real scene is non-empty,
+  // so don't keyword-match scene prose (that wrongly flipped real scenes into small talk).
+  const isGeneral = !scene;
 
   const sceneBlock = isGeneral
     ? [

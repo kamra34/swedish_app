@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable, TextInput, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Keyboard,
+  Platform, ActivityIndicator, Keyboard, Dimensions,
 } from 'react-native';
 import { colors, radius } from '../theme';
 import { scenes as fallbackScenes } from '../data/scenes';
@@ -65,8 +65,10 @@ export default function ConversationScreen({ onBack }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [listening, setListening] = useState(false);
+  const [kbPad, setKbPad] = useState(0); // iOS: lift the input bar above the keyboard
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
+  const startingRef = useRef(false); // guards against double-starting voice recognition
 
   const { knownWords, knownGrammar } = useMemo(() => {
     const unlocked = lessons.filter((l) => l.unlocked);
@@ -204,6 +206,8 @@ export default function ConversationScreen({ onBack }) {
 
     // Native: on-device speech recognition (works in the TestFlight/App Store build).
     if (Platform.OS !== 'web') {
+      if (startingRef.current) return; // ignore a 2nd tap during the permission await
+      startingRef.current = true;
       try {
         const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
         if (!perm?.granted) {
@@ -217,6 +221,8 @@ export default function ConversationScreen({ onBack }) {
       } catch (err) {
         setListening(false);
         setError('🎤 Voice could not start — type your reply for now.');
+      } finally {
+        startingRef.current = false;
       }
       return;
     }
@@ -246,14 +252,26 @@ export default function ConversationScreen({ onBack }) {
     return () => clearTimeout(t);
   }, [messages, loading]);
 
-  // When the keyboard opens, the chat area shrinks — re-scroll so the latest
-  // message stays visible above the keyboard instead of being clipped.
+  // iOS: lift the input bar (and re-pin the chat) above the keyboard using its
+  // real on-screen frame. RN's KeyboardAvoidingView mis-measures inside a
+  // SafeAreaView (it ignores the notch's top inset), which left the input bar
+  // clipped behind the keyboard — so we drive paddingBottom directly instead.
+  // (Android resizes the window itself; web has no soft keyboard.)
   useEffect(() => {
-    const evt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const sub = Keyboard.addListener(evt, () => {
-      setTimeout(() => scrollRef.current?.scrollToEnd?.({ animated: true }), 50);
-    });
-    return () => sub.remove();
+    if (Platform.OS !== 'ios') return;
+    const update = (e) => {
+      const winH = Dimensions.get('window').height;
+      const endY = e?.endCoordinates?.screenY ?? winH;
+      setKbPad(Math.max(0, winH - endY));
+      setTimeout(() => scrollRef.current?.scrollToEnd?.({ animated: true }), 0);
+    };
+    const reset = () => setKbPad(0);
+    const subs = [
+      Keyboard.addListener('keyboardWillChangeFrame', update),
+      Keyboard.addListener('keyboardWillShow', update),
+      Keyboard.addListener('keyboardWillHide', reset),
+    ];
+    return () => subs.forEach((s) => s.remove());
   }, []);
 
   // ---------- Scene picker ----------
@@ -347,7 +365,7 @@ export default function ConversationScreen({ onBack }) {
 
   // ---------- Chat ----------
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={[styles.root, { paddingBottom: kbPad }]}>
       <Header
         title={`${scene.emoji} ${scene.title}`}
         backLabel="Scenes"
@@ -363,6 +381,7 @@ export default function ConversationScreen({ onBack }) {
         contentContainerStyle={styles.chatBody}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd?.({ animated: false })}
       >
         {messages.map((m) =>
           m.role === 'ai' ? (
@@ -393,7 +412,7 @@ export default function ConversationScreen({ onBack }) {
           <Text style={styles.sendText}>Send</Text>
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

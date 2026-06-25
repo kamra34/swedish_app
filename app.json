@@ -10,9 +10,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nosrati.svenska",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Svenska does not access your photos. This entry is required only by an included media library and is never used."
       }
     },
     "android": {
