@@ -194,15 +194,26 @@ Secrets: git-ignored `server/.env` (local dev) **and** Railway service env vars 
 2. **Mic didn't work on the phone** → native voice never actually ran on iOS (browser STT is web-only).
    Added real on-device STT (`expo-speech-recognition`, `sv-SE`) in `ConversationScreen`; web keeps the
    browser path. Native → **build 1.1.0**.
-3. ✅ **Keyboard hid the chat** → scroll-to-end on `keyboardWillShow` (JS). Shipped **OTA** (runtime 1.0.0).
+3. **Keyboard hid the chat** → FIRST tried scroll-to-end on `keyboardWillShow` (OTA) — insufficient.
+   Real root cause (found via review): RN `KeyboardAvoidingView` mis-measures the notch top inset inside
+   the legacy `SafeAreaView`, so the input bar was clipped. Proper fix in **build 1.1.0(2)**: replaced KAV
+   with direct keyboard-frame padding (`keyboardWillChangeFrame`/`Show`/`Hide` → `paddingBottom`) + pin via
+   `onContentSizeChange`.
 4. ✅ **Replies ignored the scene / wanted free chat** → rewrote the backend chat prompt (scene-rooted
    from turn 1, no default "jag heter"; added open small-talk mode) + a **Free talk / Småprat** card.
    Backend redeployed; app shipped **OTA**.
 
-OTA for #3+#4 is published to branch `production` at runtime **1.0.0** (reaches build 2). The two native
-fixes (#1, #2) ride in **build 1.1.0 (build 1)** — version bumped 1.0.0→1.1.0 so `runtimeVersion`
-segregates OTAs (a voice-using update can never reach a build without the module). Built with
+OTA for #4 is on branch `production` at runtime **1.0.0** (reaches build 2). Native fixes (#1, #2) + the
+real keyboard fix (#3) ride in the **1.1.0** build line (version bumped so `runtimeVersion` segregates OTAs:
+a voice-using update can never reach a build without the module). Build with
 `eas build -p ios --profile production --auto-submit`.
+
+**Build history:** `1.0.0(2)` = first full app on TestFlight. `1.1.0(1)` = **rejected by Apple (90683:
+missing `NSPhotoLibraryUsageDescription`** — a linked media module references Photos). `1.1.0(2)` = adds
+the photo purpose string + the real keyboard fix + an adversarial-review pass that also fixed: a mic
+double-start race (`startingRef` guard) and a scene-detection bug (`isGeneral = !scene`, was a prose-keyword
+regex that misclassified scenes containing "free talk"/leading "General"). **Install 1.1.0(2) to get
+everything** (voice, silent-mode audio, keyboard, scene-aware, free-talk).
 
 **Immediate next options (owner picks):** ① ~~deploy to Railway + rebuild~~ ✅ **DONE** • ② Phase-2
 **continuous real-time voice** for the Talking coach • ③ next coach (Listening / Grammar / Reading) •
