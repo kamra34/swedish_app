@@ -298,3 +298,77 @@ calibration uses completed-lesson vocab. **Next: Phase 2** — author the deep g
 paradigm tables + ~500 Kelly words, add more drill types (cloze, definite/plural transform,
 translation), and wire **FSRS** spaced repetition. Full design detail: the `design-svenska-curriculum`
 workflow synthesis (six expert lenses).
+
+---
+
+## 15. TEACHER-LED COURSE — deep teaching sessions (decided 2026-06-25)
+
+**Why:** the 6 shallow lessons (note→vocab→game, ~20s) don't TEACH. The lessons ARE the course: replace
+them with **deep, teacher-led TEACHING SESSIONS** (~52 for A1) that genuinely teach all the Rivstart A1
+material, with an in-session AI teacher you can ask questions, **resumable** mid-session, drills woven in,
+and an end-of-level exam. Other coaches (Talking, Grammar drills) are just free practice *around* the course.
+
+**The teacher = "Astrid"** — one warm, level-aware Swedish-teacher persona used everywhere.
+
+**A teaching session = an ordered array of typed STEPS** (9–14 per session, ~10–20 min, "teach → immediately
+use" rhythm). Step `kind`s: `intro` · `warmup` · `concept` (the deep explanation: authored rule + paradigm
+table + worked examples + the *why*) · `check` (formative MCQ, teaching feedback) · `drill` (3–5 items from
+the LIVE `/practice` engine, scoped via `seedWords`) · `pitfall` (✗ vs ✓ classic errors) · `produce` (build/
+type Swedish, AI-checked) · `recap` · `complete` (celebrate, queue words to SRS, mark done). Every step shows
+a persistent **"💬 Fråga Astrid"** bar → contextual mini-chat without losing your place.
+
+**Spine / body split (same philosophy as §14):**
+- **Spine (authored once, 100% correct, OTA, `src/data/curriculum/aN/`):** each session spec = the
+  **grammarFacts + paradigm tables + canonical examples + commonErrors + the step outline + per-drill
+  DrillSpec**. The LLM **never invents a fact/paradigm/answer key** — these are authored.
+- **Body (LLM-generated, QA-verified, cached, backend):** the warm teaching prose per step, generated FROM
+  the authored facts, verified by the native-Swedish QA pass, cached in `session_content` (shared across all
+  learners at a level → cost ~0). A `content_version` per spec; bump it to regenerate corrected prose (no
+  code deploy). **Authored fallback** (facts+examples verbatim) if generation/QA ever fails, so a learner is
+  never blocked.
+- **Drills:** the existing `/practice` engine, unchanged (`seedWords` → its `knownWords` param).
+
+**Two teachers, one character (both via the structured `REPLY_SCHEMA` → free TTS + gentle correction):**
+- **In-session** `POST /session/:id/ask` — scoped to THIS session (facts + steps-so-far + current step +
+  level + knownWords); answers reinforce, don't derail; pre-baked chips ("Why?", "More examples", "Slower").
+- **Standalone Teacher coach** `POST /coach/*` — new 👩‍🏫 hub tile; level-aware free Q&A ("office hours"),
+  persistent threads. Same persona, no session scope.
+
+**Data model (all additive; auto-created in `initSchema()`):**
+- `session_content(session_id, step_id, content_version, level, payload, qa)` — verified teaching-prose cache.
+- `session_state(user_id, session_id, status, current_step, step_data jsonb, score, …)` — **resumability**:
+  written on every step advance / answered check/drill; reopen → land on `current_step` with answers intact;
+  completed sessions reopen read-only. On completion, mirror a `progress` row (`kind='session'`) so the hub ✓
+  and `/me` keep working unchanged.
+- `session_messages(user, session, …)` — in-session Q&A (persists; visible on review).
+- `coach_threads` + `coach_messages` — standalone Teacher chat.
+
+**Navigation (extend state-nav in `App.js`: add `course|session|teacher`):** Hub → "A1 · COURSE" →
+**CourseMapScreen** (units as headers; rows: ✓ done · ▸ "Resume — step 6/12" · 🔒 locked) → **SessionPlayerScreen**
+(renders steps by kind; footer = progress dots + Fråga Astrid) → complete → next. Hub coaches grid → 6th
+tile 👩‍🏫 **Teacher** → **TeacherCoachScreen**. **Gating:** sessions LINEAR (N+1 unlocks when N completed);
+units = visual only; the ONLY hard gate = the end-of-level exam → certificate → unlock A2. Completed sessions
+always re-openable.
+
+**Endpoints (auth, redeploy):** `GET /session/:id` (resolved steps from cache, cold-gen+QA on miss, + state +
+messages — one hydrating call) · `POST /session/:id/step` (save currentStep/stepData/completed) ·
+`POST /session/:id/ask` · `POST /session/:id/produce` (grade) · `GET /sessions/state` · `coach/*`.
+`/practice`, `/progress` unchanged.
+
+**Roadmap (all OTA + redeploy; NO native modules → no `eas build`):**
+- **Phase 0 — scaffold:** add the 4 tables to `initSchema`; add `src/data/curriculum/a1/` with the COURSE map
+  + ONE fully-authored session spine (`a1-s11` "En eller ett?"), dormant. Old lessons untouched.
+- **Phase 1 — ⭐ FIRST BUILD: one real deep session end-to-end, resumable** — `server/src/teach.js`
+  (`teachStep`/`verifyStep`) + `GET/POST /session/:id`, `/ask`; `SessionPlayerScreen` (all step kinds +
+  Fråga Astrid sheet) + minimal `CourseMapScreen`. Acceptance: get taught → check → embedded en/ett drill →
+  ask Astrid → **leave at step 5 → reopen on step 5 with answers intact** → finish → ✓ mirrored to `progress`.
+- **Phase 2 — standalone Teacher coach** (tile + persona + screen).
+- **Phase 3 — author the remaining ~51 A1 session spines** (OTA data); flip hub to the Course map per-unit;
+  keep old lessons as fallback until superseded.
+- **Phase 4 — Examiner + A1 certificate** (the §14 exam) → unlock A2.  **Phase 5 — A2→C1 by data.**
+
+**Decisions (owner intent, 2026-06-25):** ① author the FACTS, generate+verify the TEACHING (hybrid). ② two
+teachers, one Astrid persona; in-session first, standalone next. ③ linear sessions, ONE exam per level,
+completed sessions re-openable. ④ replace the 6 lessons ONE AT A TIME (never big-bang; old lessons stay as
+fallback). Full design: the `design-teaching-sessions` workflow synthesis (4 lenses) incl. the worked
+`a1-s11` session + the full A1 session map.
