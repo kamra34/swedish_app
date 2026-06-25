@@ -33,5 +33,17 @@ export async function initSchema() {
       updated_at timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (user_id, item_id)
     );
+
+    CREATE TABLE IF NOT EXISTS saved_scenes (
+      id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      emoji      text,
+      title      text,
+      subtitle   text,
+      scene_desc text,
+      opener_sv  text,
+      opener_en  text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
   `);
 }

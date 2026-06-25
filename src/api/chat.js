@@ -38,3 +38,9 @@ export const apiSetLevel = (level) => request('/level', { body: { level } });
 // --- Claude (used by ConversationScreen) ---
 export const sendChat = (p) => request('/chat', { body: p });
 export const fetchScenes = (p) => request('/scenes', { body: p });
+export const customScene = (p) => request('/scene/custom', { body: p });
+
+// --- Saved scenes ---
+export const getSavedScenes = () => request('/scenes/saved', { method: 'GET' });
+export const saveScene = (scene) => request('/scenes/saved', { body: { scene } });
+export const deleteSavedScene = (id) => request('/scenes/saved/' + id, { method: 'DELETE' });

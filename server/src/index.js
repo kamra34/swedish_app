@@ -4,7 +4,7 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool, initSchema } from './db.js';
-import { chatReply, generateScenes } from './claude.js';
+import { chatReply, generateScenes, generateCustomScene } from './claude.js';
 
 const app = express();
 app.use(cors());
@@ -118,6 +118,39 @@ app.post('/scenes', auth, async (req, res) => {
   } catch (e) {
     res.status(502).json({ error: 'claude_error', detail: String(e.message) });
   }
+});
+
+app.post('/scene/custom', auth, async (req, res) => {
+  try {
+    res.json(await generateCustomScene(req.body));
+  } catch (e) {
+    res.status(502).json({ error: 'claude_error', detail: String(e.message) });
+  }
+});
+
+// ---- Saved scenes (per user) ----
+app.get('/scenes/saved', auth, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT id, emoji, title, subtitle, scene_desc, opener_sv, opener_en FROM saved_scenes WHERE user_id=$1 ORDER BY created_at DESC',
+    [req.user.sub],
+  );
+  res.json({ scenes: rows });
+});
+
+app.post('/scenes/saved', auth, async (req, res) => {
+  const s = req.body.scene || {};
+  const { rows } = await pool.query(
+    `INSERT INTO saved_scenes (user_id, emoji, title, subtitle, scene_desc, opener_sv, opener_en)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     RETURNING id, emoji, title, subtitle, scene_desc, opener_sv, opener_en`,
+    [req.user.sub, s.emoji || '💬', s.title || 'Scen', s.subtitle || '', s.scene_desc || '', s.opener_sv || 'Hej!', s.opener_en || 'Hi!'],
+  );
+  res.json({ scene: rows[0] });
+});
+
+app.delete('/scenes/saved/:id', auth, async (req, res) => {
+  await pool.query('DELETE FROM saved_scenes WHERE id=$1 AND user_id=$2', [req.params.id, req.user.sub]);
+  res.json({ ok: true });
 });
 
 const PORT = process.env.PORT || 8787;

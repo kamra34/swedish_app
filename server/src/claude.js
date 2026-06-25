@@ -116,30 +116,78 @@ const SCENES_SCHEMA = {
 function scenesSystem(p) {
   const words = p.knownWords.length ? p.knownWords.join(', ') : '(only a handful so far)';
   const grammar = p.knownGrammar.length ? p.knownGrammar.join('; ') : 'basic greetings';
-  return [
-    `Generate exactly 4 short, varied, everyday role-play scenarios for a Swedish beginner at CEFR level ${p.level} to practise speaking.`,
+  const lines = [
+    `Create short everyday role-play scenes for a Swedish beginner at CEFR level ${p.level} to practise speaking.`,
     `The learner knows these words: ${words}. Grammar: ${grammar}.`,
     ``,
-    `For each scene provide: an emoji; a short Swedish title; a one-line English subtitle; a one-sentence English instruction for YOU, the AI, describing your role and the setting (scene_desc); and a friendly opening line in SIMPLE Swedish (opener_sv) with its English translation (opener_en).`,
-    `Make the four scenes clearly DIFFERENT from each other and fresh — e.g. café, bus, shop, neighbour, classroom, market, the weather, hobbies, a phone call. Keep all Swedish within or close to the learner's level. Each opener should invite an easy reply.`,
-    `Variety seed (use it to pick different scenes than usual): ${p.nonce}.`,
-  ].join('\n');
+    `For each scene provide: a fitting emoji; a short Swedish title; a one-line English subtitle; a one-sentence English instruction for YOU, the AI, describing your role and the setting (scene_desc); and a friendly opening line in SIMPLE Swedish (opener_sv) with its English translation (opener_en). Keep all Swedish within or close to the learner's level; each opener should invite an easy reply.`,
+  ];
+  if (p.topics && p.topics.length) {
+    lines.push(`Create exactly ${p.topics.length} scenes, ONE for each of these settings, IN THIS ORDER:`);
+    p.topics.forEach((t, i) => lines.push(`${i + 1}. ${t}`));
+  } else {
+    lines.push(`Create exactly 4 scenes, clearly DIFFERENT from each other and fresh. Variety seed: ${p.nonce}.`);
+  }
+  return lines.join('\n');
 }
 
 export async function generateScenes(body) {
   const level = String(body.level ?? 'A1');
   const knownWords = Array.isArray(body.knownWords) ? body.knownWords.map(String) : [];
   const knownGrammar = Array.isArray(body.knownGrammar) ? body.knownGrammar.map(String) : [];
+  const topics = Array.isArray(body.topics) ? body.topics.map(String).slice(0, 6) : [];
   const nonce = String(body.nonce ?? Math.floor(Math.random() * 1e9));
 
   const resp = await client().messages.create({
     model: MODEL,
-    max_tokens: 900,
-    system: scenesSystem({ level, knownWords, knownGrammar, nonce }),
-    messages: [{ role: 'user', content: 'Generate the four scenes now.' }],
+    max_tokens: 1100,
+    system: scenesSystem({ level, knownWords, knownGrammar, nonce, topics }),
+    messages: [{ role: 'user', content: 'Generate the scenes now.' }],
     output_config: { format: { type: 'json_schema', schema: SCENES_SCHEMA } },
   });
 
   const parsed = parseJson(resp.content?.find((b) => b.type === 'text')?.text);
   return { scenes: Array.isArray(parsed.scenes) ? parsed.scenes : [] };
+}
+
+// ---- One custom scene from the learner's own description ----
+const SINGLE_SCENE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    emoji: { type: 'string' },
+    title: { type: 'string', description: 'Short Swedish title (2-3 words).' },
+    subtitle: { type: 'string', description: 'Short English description of the scene.' },
+    scene_desc: { type: 'string', description: 'One-sentence English instruction for the AI describing its role and the setting.' },
+    opener_sv: { type: 'string', description: "The AI's opening line in simple Swedish." },
+    opener_en: { type: 'string', description: 'English translation of opener_sv.' },
+  },
+  required: ['emoji', 'title', 'subtitle', 'scene_desc', 'opener_sv', 'opener_en'],
+};
+
+export async function generateCustomScene(body) {
+  const level = String(body.level ?? 'A1');
+  const knownWords = Array.isArray(body.knownWords) ? body.knownWords.map(String) : [];
+  const knownGrammar = Array.isArray(body.knownGrammar) ? body.knownGrammar.map(String) : [];
+  const description = String(body.description ?? '').slice(0, 200) || 'a simple everyday conversation';
+  const words = knownWords.length ? knownWords.join(', ') : '(only a handful so far)';
+
+  const system = [
+    `Build ONE Swedish role-play scene for a CEFR ${level} learner to practise speaking, based on this request from the learner:`,
+    `"${description}"`,
+    ``,
+    `Provide: a fitting emoji; a short Swedish title; a one-line English subtitle; a one-sentence English instruction for YOU, the AI, describing your role and the setting (scene_desc); and a friendly opening line in SIMPLE Swedish (opener_sv) with its English translation (opener_en).`,
+    `Keep all Swedish within or close to the learner's level. The learner knows: ${words}. Grammar: ${knownGrammar.join('; ') || 'basic greetings'}. If the request is unclear or off-topic, choose a sensible simple everyday scene.`,
+  ].join('\n');
+
+  const resp = await client().messages.create({
+    model: MODEL,
+    max_tokens: 400,
+    system,
+    messages: [{ role: 'user', content: 'Create the scene now.' }],
+    output_config: { format: { type: 'json_schema', schema: SINGLE_SCENE_SCHEMA } },
+  });
+
+  const parsed = parseJson(resp.content?.find((b) => b.type === 'text')?.text);
+  return { scene: parsed && parsed.title ? parsed : null };
 }
