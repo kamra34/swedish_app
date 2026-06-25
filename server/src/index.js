@@ -6,6 +6,10 @@ import jwt from 'jsonwebtoken';
 import { pool, initSchema } from './db.js';
 import { chatReply, generateScenes, generateCustomScene } from './claude.js';
 import { generateDrills } from './generate.js';
+import {
+  teachStep, askTeacher, getSessionState, saveSessionState, allSessionStates,
+  addSessionMessage, listSessionMessages,
+} from './teach.js';
 
 const app = express();
 app.use(cors());
@@ -136,6 +140,35 @@ app.post('/practice', auth, async (req, res) => {
   } catch (e) {
     res.status(502).json({ error: 'generate_error', detail: String(e.message) });
   }
+});
+
+// ---- Teacher-led teaching sessions (PROJECT.md §15) ----
+app.post('/teach', auth, async (req, res) => {
+  try { res.json(await teachStep(req.body)); }
+  catch (e) { res.status(502).json({ error: 'teach_error', detail: String(e.message) }); }
+});
+app.get('/sessions/state', auth, async (req, res) => {
+  try { res.json(await allSessionStates(req.user.sub)); }
+  catch (e) { res.status(500).json({ error: 'state_error', detail: String(e.message) }); }
+});
+app.get('/session/:id/state', auth, async (req, res) => {
+  try {
+    const state = await getSessionState(req.user.sub, req.params.id);
+    const { messages } = await listSessionMessages(req.user.sub, req.params.id);
+    res.json({ state, messages });
+  } catch (e) { res.status(500).json({ error: 'state_error', detail: String(e.message) }); }
+});
+app.post('/session/:id/state', auth, async (req, res) => {
+  try { res.json(await saveSessionState(req.user.sub, { ...req.body, sessionId: req.params.id })); }
+  catch (e) { res.status(500).json({ error: 'state_error', detail: String(e.message) }); }
+});
+app.post('/session/:id/ask', auth, async (req, res) => {
+  try {
+    const out = await askTeacher(req.body);
+    await addSessionMessage(req.user.sub, req.params.id, req.body.stepId, 'user', req.body.question);
+    await addSessionMessage(req.user.sub, req.params.id, req.body.stepId, 'assistant', out.answer);
+    res.json(out);
+  } catch (e) { res.status(502).json({ error: 'ask_error', detail: String(e.message) }); }
 });
 
 // ---- Saved scenes (per user) ----
