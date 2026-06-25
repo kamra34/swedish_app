@@ -1,24 +1,40 @@
-import { BACKEND_URL, APP_SECRET } from '../aiConfig';
+import { BACKEND_URL } from '../aiConfig';
 
-async function post(path, payload) {
+// The signed-in user's token (set by the auth layer after login).
+let TOKEN = null;
+export function setAuthToken(t) {
+  TOKEN = t;
+}
+
+async function request(path, { method = 'POST', body, auth = true } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (auth && TOKEN) headers.Authorization = 'Bearer ' + TOKEN;
   const res = await fetch(BACKEND_URL + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-secret': APP_SECRET },
-    body: JSON.stringify(payload),
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '');
-    throw new Error(`Backend ${res.status}: ${txt}`);
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
   }
-  return res.json();
+  if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
+  return data;
 }
 
-// One conversation turn → { reply_sv, reply_en, correction: { had_error, note } }
-export function sendChat({ level, scene, knownWords, knownGrammar, history, userMessage }) {
-  return post('/chat', { level, scene, knownWords, knownGrammar, history, userMessage });
-}
+// --- auth + profile ---
+export const apiSignup = (email, password, displayName) =>
+  request('/auth/signup', { auth: false, body: { email, password, displayName } });
+export const apiLogin = (email, password) =>
+  request('/auth/login', { auth: false, body: { email, password } });
+export const apiMe = () => request('/me', { method: 'GET' });
+export const apiSaveProgress = (itemId, opts = {}) =>
+  request('/progress', { body: { itemId, kind: 'lesson', completed: true, ...opts } });
+export const apiSetLevel = (level) => request('/level', { body: { level } });
 
-// Fresh, LLM-generated scenes → { scenes: [{ emoji, title, subtitle, scene_desc, opener_sv, opener_en }] }
-export function fetchScenes({ level, knownWords, knownGrammar, nonce }) {
-  return post('/scenes', { level, knownWords, knownGrammar, nonce });
-}
+// --- Claude (used by ConversationScreen) ---
+export const sendChat = (p) => request('/chat', { body: p });
+export const fetchScenes = (p) => request('/scenes', { body: p });
