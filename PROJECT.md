@@ -160,14 +160,33 @@ Evolving from "app + AI chat" into a **structured Swedish school**:
 
 ## 13. CURRENT STATE — read this first to continue (updated 2026-06-25)
 
-**What works (end-to-end, live):** accounts, the coaches hub, **six A1 lessons** (a1-1…a1-6, greetings→
-family — Rivstart sequence, native-verified; a1-7/a1-8 are locked "coming next" stubs) with saved
-progress, and the Talking coach — **scene-aware + free-talk** chat (level-aware, English + gentle
-correction; its known vocab now tracks **completed** lessons), Swedish TTS
-(plays even on silent), **on-device voice input**, and **hands-free "call mode"** (continuous
-listen→reply→speak→auto-listen) — all backed by the deployed Railway API. **Latest native TestFlight build:
-`1.1.0 (3)`** (launches; verified VALID); **call mode shipped on top via OTA** (runtime 1.1.0, commit
-`109495b`) — reopen the app twice to get the newest JS.
+> ## ▶ THE NEXT STEP (what to build next)
+> **Author the full A1 teacher-led course.** The teaching-session SYSTEM is built and proven on ONE
+> session (`a1-s11` "En och ett", live). Now make A1 *complete*: author the remaining **51 sessions** from
+> **`src/data/curriculum/a1/A1_SESSION_MAP.md`** (the full 52-session Rivstart-A1 backbone), using
+> `src/data/curriculum/a1/a1-s11.js` as the template — author each session's correct **facts/paradigm/
+> examples/step-plan**, register it in `src/data/curriculum/a1/index.js` (`SESSIONS` + `A1_ORDER`, map
+> order), and **verify each with the native-Swedish-teacher workflow** before shipping (OTA). Suggested
+> order: sessions **#1–#10** (Unit 0 sounds/numbers + Unit 1 greetings) first, then #12→#52. This is the
+> bulk content push toward a genuinely certifiable A1 (see §15). After the course: Phase 2 = the standalone
+> **Teacher coach** (👩‍🏫 hub tile, Astrid "office hours"); Phase 4 = the **Examiner** (A1 exam → certificate
+> → unlock A2). Three new verb-drill modes the map needs in `server/src/generate.js`: modal+infinitive (#47),
+> supine (#50), preterite (#51).
+
+**What works (end-to-end, live — all via OTA on TestFlight build `1.1.0 (3)`):**
+- **Teacher-led course (§15):** Hub → **📘 A1 Course** → the deep, resumable **a1-s11** session taught by
+  **Astrid** (generated + Swedish-QA-verified prose, paradigm table, check, embedded drill, pitfall, produce,
+  recap), with an inline **💬 Fråga Astrid** Q&A and exact resume. Backend: `server/src/teach.js` + tables
+  `session_content`/`session_state`/`session_messages`.
+- **Grammar coach (§14):** generate→QA→**cache** practice engine with FOUR drill types — **en/ett**,
+  **noun definite/plural**, **verb present-tense**, **cloze** (`server/src/generate.js`, `POST /practice`).
+- **Talking coach:** scene-aware + free-talk chat, Swedish TTS (plays on silent), on-device voice input,
+  hands-free **call mode**.
+- **Accounts**, coaches hub, the **6 shallow "Quick lessons"** (a1-1…a1-6, kept as a fallback during the
+  course transition), progress synced. Backed by the deployed Railway API.
+
+**Native build `1.1.0 (3)`** is on TestFlight (launches, VALID); everything since ships **OTA** (runtime
+1.1.0) — reopen the app twice for the newest JS. NO `eas build` needed for the course system (no native modules).
 
 **Run it locally:**
 ```
@@ -231,10 +250,11 @@ crash on open. Fix: `npx expo install expo-asset expo-constants` (pins SDK-54 `1
 native modules that a JS bundle check never will.** Install **1.1.0(3)** to get everything (voice,
 silent-mode audio, keyboard, scene-aware, free-talk).
 
-**Immediate next options (owner picks):** ① ~~deploy to Railway + rebuild~~ ✅ **DONE** • ② ~~Phase-2
-real-time voice (auto-loop)~~ ✅ **DONE** → next is **barge-in** (interrupt the AI mid-speech) • ③ next
-coach (Listening / Grammar / Reading) • ④ Examiner (placement + level exams + certificates) • ⑤ more A1
-lessons • ⑥ SRS. Visual polish is intentionally deferred.
+**Direction (decided):** the product is now a **teacher-led course** (§15) backed by the AI generate→
+verify→cache engine (§14). **The next step is at the top of this section: author the full A1 course from
+`A1_SESSION_MAP.md`.** Then: standalone Teacher coach → Examiner/certificate (A1→A2) → A2–C1 by data →
+SRS for vocab retention → barge-in for voice. Visual polish is intentionally deferred. The owner's goal:
+finishing a level must genuinely certify it — completeness over speed.
 
 **Conventions:** commit messages end with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 Never put secrets in the app or git. Don't bump the Expo SDK off 54. The owner is a non-coder — build
@@ -372,3 +392,11 @@ teachers, one Astrid persona; in-session first, standalone next. ③ linear sess
 completed sessions re-openable. ④ replace the 6 lessons ONE AT A TIME (never big-bang; old lessons stay as
 fallback). Full design: the `design-teaching-sessions` workflow synthesis (4 lenses) incl. the worked
 `a1-s11` session + the full A1 session map.
+
+**STATUS (2026-06-25):** **Phase 0 + Phase 1 DONE** — the system is built and live end-to-end on **one**
+session (`a1-s11`): `server/src/teach.js` (teachStep generate→QA→cache; askTeacher; resumable state) +
+`/teach`, `/session/:id/{state,ask}`, `/sessions/state`; app `SessionPlayerScreen` (all step kinds + Fråga
+Astrid sheet) + `CourseMapScreen`; Hub "📘 A1 Course" entry. The full **52-session A1 backbone** is written
+out in **`src/data/curriculum/a1/A1_SESSION_MAP.md`**. **NEXT = Phase 3: author the remaining 51 sessions**
+from that map (template `a1-s11.js`; register in `index.js`; native-Swedish-verify each), then Phase 2
+(standalone Teacher coach) + Phase 4 (Examiner). See §13 ▶ NEXT STEP.

@@ -1,7 +1,12 @@
 # Svenska — Swedish learning app
 
-**Read `PROJECT.md` first — especially §13 (CURRENT STATE).** It has the vision, the curriculum
-(Rivstart sequence + Swedish Kelly list, CEFR A1→C1), the architecture, and the roadmap.
+**Read `PROJECT.md` first — especially §13 (CURRENT STATE), which has the ▶ NEXT STEP.** Then §14 (the
+AI practice engine) and §15 (the teacher-led course system). The vision, curriculum (Rivstart + Kelly,
+A1→C1), and roadmap live there.
+
+> **▶ NEXT STEP:** author the full A1 teacher-led course — the 51 remaining sessions from
+> `src/data/curriculum/a1/A1_SESSION_MAP.md` (template `a1-s11.js`; register in `index.js`; native-Swedish
+> verify each; ships OTA). The session SYSTEM is built + live on `a1-s11`; this is the content build-out.
 
 ## Quick facts
 - **Expo (React Native), pinned to SDK 54** — do NOT bump it (the owner's App Store Expo Go only
