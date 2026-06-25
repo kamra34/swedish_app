@@ -37,6 +37,7 @@ const toRaw = (s) => ({
 
 export default function ConversationScreen({ onBack }) {
   const [scene, setScene] = useState(null);
+  const [sceneSaved, setSceneSaved] = useState(false);
 
   // scene-picker state
   const [suggested, setSuggested] = useState(null);
@@ -91,6 +92,7 @@ export default function ConversationScreen({ onBack }) {
   const startScene = (s) => {
     stopVoice();
     setScene(s);
+    setSceneSaved(!!s.savedId);
     setError(null);
     setMessages([{ id: 'opener', role: 'ai', sv: s.opener.sv, en: s.opener.en, showEn: false, correction: null }]);
   };
@@ -115,6 +117,14 @@ export default function ConversationScreen({ onBack }) {
     try {
       const d = await saveScene(toRaw(s));
       if (d.scene) setSaved((prev) => [normSaved(d.scene), ...prev]);
+    } catch {}
+  };
+
+  const saveCurrentScene = async () => {
+    if (!scene || sceneSaved) return;
+    try {
+      const d = await saveScene(toRaw(scene));
+      if (d.scene) { setSaved((prev) => [normSaved(d.scene), ...prev]); setSceneSaved(true); }
     } catch {}
   };
 
@@ -264,7 +274,16 @@ export default function ConversationScreen({ onBack }) {
   // ---------- Chat ----------
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Header title={`${scene.emoji} ${scene.title}`} backLabel="Scenes" onBack={leaveScene} />
+      <Header
+        title={`${scene.emoji} ${scene.title}`}
+        backLabel="Scenes"
+        onBack={leaveScene}
+        right={
+          <Pressable onPress={saveCurrentScene} disabled={sceneSaved} hitSlop={8}>
+            <Text style={[styles.saveScene, sceneSaved && styles.saveSceneDone]}>{sceneSaved ? '✓ Saved' : '⭐ Save'}</Text>
+          </Pressable>
+        }
+      />
       <ScrollView ref={scrollRef} contentContainerStyle={styles.chatBody}>
         {messages.map((m) =>
           m.role === 'ai' ? (
@@ -314,12 +333,12 @@ function AiBubble({ m, onToggle }) {
   );
 }
 
-function Header({ title, onBack, backLabel = 'Back' }) {
+function Header({ title, onBack, backLabel = 'Back', right = null }) {
   return (
     <View style={styles.header}>
       <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ {backLabel}</Text></Pressable>
       <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
-      <View style={{ width: 64 }} />
+      <View style={styles.headerRight}>{right}</View>
     </View>
   );
 }
@@ -331,7 +350,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
     borderBottomWidth: 1, borderBottomColor: colors.line, backgroundColor: colors.card,
   },
-  back: { color: colors.blue, fontSize: 16, fontWeight: '700', width: 64 },
+  back: { color: colors.blue, fontSize: 16, fontWeight: '700', width: 74 },
+  headerRight: { width: 74, alignItems: 'flex-end' },
+  saveScene: { color: colors.blue, fontSize: 13, fontWeight: '800' },
+  saveSceneDone: { color: colors.green },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '800', color: colors.ink },
 
   pickerBody: { padding: 20 },
