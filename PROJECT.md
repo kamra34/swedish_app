@@ -3,14 +3,17 @@
 A living high-level reference so any new coding session (or collaborator) can pick up
 where we left off. For day-to-day Claude Code guidance, see `CLAUDE.md`.
 
+> **🆕 New session? Read §13 (CURRENT STATE) first** — it's the authoritative snapshot of
+> what's built, how to run it, and what to do next. §§1–12 are the background and decisions.
+
 ---
 
 ## 1. What we're building
 An interactive **iOS app to learn Swedish**, CEFR **A1 → C1**, that teaches grammar +
 vocabulary so the learner can build *real* sentences — via bite-size lessons, word games,
-reading, and an AI conversation partner. Built for one learner (the owner) first, with
-App Store potential later. The owner is a **non-coder product owner**; Claude builds and
-explains in plain language.
+reading, and a team of AI coaches. Built for one learner (the owner) first, with App Store
+potential later. The owner is a **non-coder product owner**; Claude builds and explains in
+plain language.
 
 ## 2. Core learning principle
 Most apps drill phrases but leave you unable to *produce* sentences. Our spine is
@@ -28,104 +31,152 @@ taught explicitly. The lesson loop:
 - **Vocabulary:** driven by the **Swedish Kelly list** (openly available, CEFR-tagged
   ~8k-word frequency list).
 - **Grammar progression** modeled on **Form i fokus (A/B/C)**.
-- **Reading** modeled on easy-Swedish sources (*8 Sidor*, *lättläst*) — original graded
-  texts per level.
+- **Reading** modeled on easy-Swedish sources (*8 Sidor*, *lättläst*) — original graded texts.
 
 ## 4. App structure
 - **Levels** A1–C1 → **modules** → **lessons**. A lesson = one loop (see §2).
 - Content lives as **data** in `src/data/courseData.js` (each lesson: grammar note, vocab,
   sentence-builder items). Adding lessons = adding data, no UI changes.
 - **Games:** *Sentence Builder* (tap words into the right order — teaches Swedish V2 word
-  order) is the core. Planned: en/ett gender sort, ending match, conjugation, cloze,
-  listening dictation.
+  order) is the core. Planned: en/ett gender sort, ending match, conjugation, cloze, listening.
 - **Spaced repetition (SRS)** for vocabulary — planned (FSRS algorithm).
+- **Progress persists** to the account (Railway DB) — completed lessons + level.
 
 ## 5. Screens (current)
-- `HomeScreen` — the A1→C1 path, lesson list, and a "Talk in Swedish" entry.
+- `AuthScreen` — email + password **login / sign-up**. The whole app is gated behind it.
+- `HubScreen` — the **coaches hub** (home): greeting + level + sign-out; coaches (🗣️ Talking
+  active; Grammar / Listening / Reading "coming soon"); and the A1 **lessons** with ✓ from the DB.
 - `LessonScreen` — steps: grammar note → vocabulary → Sentence Builder rounds → done.
   Tap-to-hear 🔊 on words, examples, and solved sentences.
-- `ConversationScreen` — the AI conversation partner (scene picker + chat).
-- Navigation is simple state in `App.js` (`home | lesson | conversation`). Move to a router
-  (Expo Router / React Navigation) when it grows.
+- `ConversationScreen` — the **Talking coach**: scene picker (**Make-your-own**, **Saved**,
+  **Suggested**) + chat (level-aware structured reply with English + gentle correction),
+  🔊 pronunciation, 🎤 voice input (web, typing fallback), and a ⭐ Save-scene button.
+- Navigation is simple state in `App.js` (`home | lesson | conversation`) inside `AuthProvider`.
+  Move to a router (Expo Router / React Navigation) when it grows.
 
 ## 6. Tech stack
 - **Expo (React Native)**, **pinned to SDK 54** — the owner's App Store **Expo Go only
   supports ≤ 54** (SDK 56 showed "incompatible"). Do not bump the SDK without re-checking.
-- **expo-speech** — on-device Swedish TTS (tap-to-hear pronunciation).
-- **AI backend:** a **Cloudflare Worker** (`worker/`) that proxies to **Claude Opus 4.8**.
-- State is in-memory for now (no DB). Progress persistence (AsyncStorage) is a TODO.
+- **Native modules added** (each needs a fresh `eas build` to reach the iPhone): `expo-speech`
+  (Swedish TTS), `@react-native-async-storage/async-storage` (auth token).
+- **Backend = `server/`** — a Node/**Express** API on **Railway** + **Railway Postgres**, calling
+  **Claude Opus 4.8**. (The old `worker/` Cloudflare folder is **legacy/unused** — see §7.)
+- **Accounts:** email + password, JWT. State + progress live in the DB.
 
-## 7. AI architecture
-- The app **never holds the Anthropic API key.** It calls the **Cloudflare Worker**, which
-  holds the key and calls Claude.
-- The Worker builds a **level-aware system prompt** (CEFR level + the learner's unlocked
+## 7. AI / backend architecture
+- The app **never holds the Anthropic API key.** It calls the **Railway Node API** (`server/`),
+  which holds the key + DB creds and calls Claude. The app talks to it over **HTTPS only**.
+- Auth: **email + password** → bcrypt-hashed, JWT (60-day). The app sends `Authorization: Bearer`.
+- The API builds a **level-aware system prompt** (CEFR level + the learner's unlocked
   vocab/grammar) and returns **structured JSON** the app renders directly.
-- **Default model: Claude Opus 4.8** (`claude-opus-4-8`). Owner chose Opus everywhere; Haiku
-  is a cost option for later (owner's decision, not a silent default).
-- First AI feature shipped: **Conversation partner**. Planned (same backend, different prompt
-  persona): sentence checker, grammar tutor, infinite practice.
-- Code: `worker/src/index.ts` (backend) and `src/api/chat.js` + `src/aiConfig.js` (app).
+- **Default model: Claude Opus 4.8** (`claude-opus-4-8`). Owner chose Opus everywhere; Haiku is a
+  cost option for later (owner's decision, not a silent default).
+- **Endpoints** (all except `/auth/*` need a Bearer JWT): `POST /auth/signup`, `POST /auth/login`,
+  `GET /me`, `POST /progress`, `POST /level`, `POST /chat`, `POST /scenes` (topic-driven),
+  `POST /scene/custom`, `GET /scenes/saved`, `POST /scenes/saved`, `DELETE /scenes/saved/:id`.
+- **DB tables** (auto-created on boot by `server/src/db.js`): `users`, `progress`, `saved_scenes`.
+- Code: `server/src/{index,db,claude}.js` (backend); `src/api/chat.js` + `src/aiConfig.js` +
+  `src/AuthContext.js` (app). `worker/` is legacy — ignore it.
 
 ## 8. Dev & deploy workflow — IMPORTANT (owner is behind a locked corporate VPN)
 The owner's machine is behind **Palo Alto GlobalProtect** (always-on, full-tunnel) — so
 Expo Go over LAN/tunnel does **not** work. Everything must be HTTPS-to-cloud or localhost.
-- **Local dev loop:** `npx expo start --web` (web preview at `localhost:8081`) **+**
-  `npm --prefix worker run dev` (Worker at `localhost:8787`). All localhost → VPN-safe.
-- **On the iPhone:** via **EAS Build → TestFlight** (cloud build; HTTPS to Apple/Expo →
-  VPN-safe).
-  - **JS / content changes** → `eas update` (OTA, lands in ~30–60s, no rebuild).
-  - **New native modules / app-version bumps** → full `eas build` + `eas submit`
-    (~15 min, batch these).
-- Backend goes live with `wrangler deploy`; then swap `src/aiConfig.js` `BACKEND_URL` to the
-  deployed `*.workers.dev` URL and set prod secrets with `wrangler secret put`.
+- **Local dev loop (two servers, both needed for the AI):**
+  - `npx expo start --web` → app at `http://localhost:8081`
+  - `npm --prefix server start` → API at `http://localhost:8787` (reads `server/.env`; **plain
+    Node — restart it after editing `server/` code**, it does not auto-reload)
+  - The local API connects to **Railway Postgres over its public proxy** (reachable through the VPN).
+- **On the iPhone:** via **EAS Build → TestFlight** (cloud build; HTTPS to Apple/Expo → VPN-safe).
+  - **JS / content changes** → `eas update` (OTA, no rebuild).
+  - **New native modules / version bumps** → full `eas build` + `eas submit` (~15 min, batch these).
+- **Backend goes live** by deploying `server/` to Railway (`railway up` with the `svenska-cli`
+  token), setting its env vars (use the **internal** `DATABASE_URL`, plus `ANTHROPIC_API_KEY`,
+  `JWT_SECRET`), then pointing `src/aiConfig.js` `BACKEND_URL` at the public Railway URL.
 
 ## 9. Credentials & secrets (where they live — never in the app/git)
-- **Anthropic API key** — `worker/.dev.vars` (local, git-ignored) + a Cloudflare Worker
-  secret (prod). Never in the app or git.
-- **APP_SECRET** = `svenska-kr-2026` — a weak shared gate the app sends as `x-app-secret`.
-  It ships in the app (not truly secret). Real per-user auth is a TODO.
+- **`server/.env`** (git-ignored, local dev): `DATABASE_URL` (the **public** Railway proxy),
+  `ANTHROPIC_API_KEY`, `JWT_SECRET`, `PORT`. On Railway (prod) set the same as service env vars
+  but with the **internal** `DATABASE_URL`.
+- **Railway:** project **"Svenska"** + a Postgres DB. A `svenska-cli` account token exists for CLI
+  deploy. (Token + DB URL are secret — never in git.)
 - **Expo/EAS:** project `@kamra34/swedish-app`; iOS bundle id `com.nosrati.svenska`.
-- **Apple:** App Store Connect app id `6783824683`; distribution via an App Store Connect
-  **API key** at `~/Downloads/AuthKey_F8SR492WR6.p8` (git-ignored) — see `eas.json`.
-- Per-session tokens (Expo token, Cloudflare token, etc.) are provided by the owner, are
-  revocable, and are not stored in git.
+- **Apple:** App Store Connect app id `6783824683`; distribution via an App Store Connect **API key**
+  at `~/Downloads/AuthKey_F8SR492WR6.p8` (git-ignored) — see `eas.json`.
+- Per-session tokens (Expo token, Railway token, etc.) are provided by the owner, revocable, not in git.
+- **Test account:** `test@example.com` / `test1234`.
 
 ## 10. Repo layout
-- `App.js`, `src/` — the Expo app (`screens/`, `components/`, `data/`, `api/`).
-- `worker/` — the Cloudflare Worker AI backend (git-ignored: `.dev.vars`, `node_modules/`).
+- `App.js`, `src/` — the Expo app (`screens/`, `components/`, `data/`, `api/`, `AuthContext.js`, `storage.js`).
+- `server/` — the **Railway Node API** (git-ignored: `.env`, `node_modules/`). **This is the live backend.**
+- `worker/` — **legacy** Cloudflare Worker (no longer used; safe to delete).
 - `eas.json`, `app.json` — build & runtime config.
 - `PROJECT.md` (this), `CLAUDE.md`, `AGENTS.md` — docs.
 
 ## 11. Status & roadmap
-**Done:** A1 Lesson 1 (greetings, en/ett intro, word order) + Sentence Builder game •
-tap-to-hear pronunciation • app on the iPhone via TestFlight • AI Conversation partner
-(working locally) • this documentation.
+**Done:** A1 Lesson 1 + Sentence Builder game • tap-to-hear pronunciation • app on the iPhone via
+TestFlight (early build) • **accounts (email+password) + Railway Postgres + Node API** • **coaches
+hub** • Talking coach with **generated/custom/saved scenes**, voice input, and gentle corrections •
+**progress synced to the account** • this documentation.
 
-**Next:** see §12 — the product is evolving into a coached school with accounts.
+**Next:** see §12 and §13.
 
 ---
 
 ## 12. Product direction — decided 2026-06-25
 Evolving from "app + AI chat" into a **structured Swedish school**:
-- **Coaches hub:** the home becomes a hub of specialized AI coaches — 🗣️ **Talking** (continuous
-  voice), 📖 **Grammar**, 🎧 **Listening** (passage → questions → score), 📚 **Reading**. The existing
-  lessons/games are one track too. (Coaches can get names/characters when we polish.)
-- **Accounts + DB → Supabase (all-in):** auth + Postgres + **Edge Functions** for the Claude calls
-  (decided to consolidate — migrate the Cloudflare Worker logic into a Supabase Edge Function). The
-  app uses the **anon** key; the **service_role** key + the **Anthropic key** stay server-side (Edge
-  Function secrets / env).
+- **Coaches hub:** the home is a hub of specialized AI coaches — 🗣️ **Talking** (continuous
+  voice), 📖 **Grammar**, 🎧 **Listening** (passage → questions → score), 📚 **Reading**. The lessons/
+  games are one track too. (Coaches can get names/characters when we polish.)
+- **Accounts + DB → Railway (all-in):** Railway Postgres + a Node/Express API (auth, progress,
+  Claude proxy). The app talks to it over HTTPS only. **Login = email + password** (JWT).
 - **Levels & certification:** an **Examiner** coach runs a **placement test** (sets start level) and
   **level exams** (listening / reading / grammar / speaking, AI-graded). Pass → **certificate** →
   unlock the next level (A1→C1). Speaking is graded via transcript + rubric (approximate; refine later).
+- **Login methods:** email+password now; **Google** (free OAuth) + **Sign in with Apple** (required by
+  the App Store if Google is offered; also free) to be added later.
 - **Voice goal — full real-time, phone-call style** (owner's choice). Pipeline = mic → speech-to-text
-  → Claude → text-to-speech → auto-listen. Claude is text-only (no native voice mode), so we BUILD UP
-  TO full-duplex in stages: a solid push-to-talk auto-loop first, then add interruption/barge-in.
-  Best on the native iPhone; browser for dev.
-- **Data model (planned):** `profiles` (level, name), `progress` (lessons/exercises + scores),
-  `vocab_srs` (review state), `exam_attempts` (per-skill scores, pass/fail), `certificates`.
+  → Claude → text-to-speech → auto-listen. Claude is text-only (no native voice mode), so BUILD UP TO
+  full-duplex in stages: a solid push-to-talk auto-loop first, then interruption/barge-in. Best on the
+  native iPhone; browser for dev.
+- **Data model (planned beyond current):** `vocab_srs` (review state), `exam_attempts` (per-skill
+  scores, pass/fail), `certificates`. (Current tables: `users`, `progress`, `saved_scenes`.)
 
 **Phased build:**
-1. **Foundation** — Supabase accounts + DB + the coaches hub + persisted progress/level. *(current)*
+1. **Foundation** — Railway accounts + DB + the coaches hub + persisted progress/level. **✅ DONE.**
 2. **Full real-time voice** for the Talking coach (auto-loop → barge-in).
 3. **Listening coach.**  4. **Grammar coach.**  5. **Examiner** (placement + level exams + certificates
-   + level unlocking).  Ongoing: more lessons, SRS, and visual polish.
+   + level unlocking).  Ongoing: more lessons, SRS, visual polish (deferred on purpose).
+
+---
+
+## 13. CURRENT STATE — read this first to continue (updated 2026-06-25)
+
+**What works right now (in the local web preview):** accounts, the coaches hub, lessons with
+saved progress, and the full Talking coach (generated/custom/saved scenes, level-aware chat,
+pronunciation, voice input).
+
+**Run it locally (both needed):**
+```
+npx expo start --web          # app  → http://localhost:8081
+npm --prefix server start     # API  → http://localhost:8787   (reads server/.env; RESTART after editing server/)
+```
+Log in with **test@example.com / test1234**, or sign up.
+
+**Backend is the Railway Node API in `server/`** (Postgres on Railway). `worker/` (Cloudflare) is
+**legacy/unused**. Secrets are in git-ignored `server/.env`.
+
+**NOT done yet (the two gaps to get the current app on the iPhone):**
+1. **Deploy `server/` to Railway** (it only runs locally so far). Use the `svenska-cli` token:
+   `railway up`, set env vars (internal `DATABASE_URL`, `ANTHROPIC_API_KEY`, `JWT_SECRET`).
+2. **Point the app at it + rebuild:** set `src/aiConfig.js` `BACKEND_URL` to the public Railway URL,
+   then `eas build -p ios --profile production` + `eas submit` (a **full rebuild** is required — the
+   TestFlight build is stale and lacks `expo-speech`, AsyncStorage, accounts, hub, and voice).
+
+**Immediate next options (owner picks):** ① deploy to Railway + rebuild for the phone • ② Phase-2
+**continuous real-time voice** for the Talking coach • ③ next coach (Listening / Grammar / Reading) •
+④ Examiner (placement + level exams + certificates) • ⑤ more A1 lessons • ⑥ SRS. Visual polish is
+intentionally deferred.
+
+**Conventions:** commit messages end with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+Never put secrets in the app or git. Don't bump the Expo SDK off 54. The owner is a non-coder — build
+and explain plainly; do the credential/setup steps for them where possible.
