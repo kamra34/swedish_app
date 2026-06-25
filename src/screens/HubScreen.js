@@ -6,7 +6,7 @@ import { useAuth } from '../AuthContext';
 
 const COACHES = [
   { id: 'talking', emoji: '🗣️', title: 'Talking coach', sub: 'Practise speaking', ready: true },
-  { id: 'grammar', emoji: '📖', title: 'Grammar coach', sub: 'en/ett drills', ready: true },
+  { id: 'grammar', emoji: '📖', title: 'Grammar coach', sub: 'en/ett · verb drills', ready: true },
   { id: 'listening', emoji: '🎧', title: 'Listening coach', sub: 'Hear & answer', ready: false },
   { id: 'reading', emoji: '📚', title: 'Reading coach', sub: 'Read & answer', ready: false },
 ];

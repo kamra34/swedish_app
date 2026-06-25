@@ -45,5 +45,15 @@ export async function initSchema() {
       opener_en  text,
       created_at timestamptz NOT NULL DEFAULT now()
     );
+
+    -- Cache of generated + native-Swedish-QA-verified practice items (PROJECT.md §14).
+    CREATE TABLE IF NOT EXISTS practice_items (
+      id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      type       text NOT NULL,
+      item_key   text NOT NULL,
+      item       jsonb NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (type, item_key)
+    );
   `);
 }
